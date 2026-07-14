@@ -3,66 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemini Career Copilot</title>
+    <title>Career Copilot v2.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-50 min-h-screen text-slate-900 font-sans">
-    <div class="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
+<body class="bg-slate-50 min-h-screen text-slate-900">
+    <div class="max-w-4xl mx-auto p-8 space-y-6">
         
-        <!-- Header -->
-        <header class="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <div>
-                <h1 class="text-2xl font-black text-blue-600">Career Copilot</h1>
-                <p class="text-[10px] text-slate-400 font-bold uppercase">v2.0 - GitHub Pages Ready</p>
-            </div>
+        <header class="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border">
+            <h1 class="text-2xl font-black text-blue-600">Career Copilot</h1>
             <div id="authArea">
-                <button id="loginBtn" class="bg-blue-600 text-white px-6 py-2 rounded-full font-bold hover:bg-blue-700 transition">Sign In with Google</button>
+                <button id="loginBtn" class="bg-blue-600 text-white px-6 py-2 rounded-full font-bold">Sign In</button>
                 <div id="userInfo" class="hidden flex items-center gap-4">
-                    <span id="displayName" class="text-sm font-bold"></span>
-                    <button id="logoutBtn" class="text-xs text-red-500 hover:underline">Logout</button>
+                    <span id="displayName" class="font-bold"></span>
+                    <button id="logoutBtn" class="text-red-500 text-sm">Logout</button>
                 </div>
             </div>
         </header>
 
         <main id="appInterface" class="hidden space-y-6">
-            <!-- API Key -->
-            <section class="bg-white p-6 rounded-2xl border border-slate-200">
-                <label class="block text-xs font-bold mb-2 uppercase text-slate-500">1. Gemini API Key</label>
-                <input type="password" id="geminiKey" class="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Paste AIzaSy... key here">
+            <input type="password" id="geminiKey" class="w-full p-3 border rounded-xl" placeholder="Gemini API Key">
+
+            <section class="bg-white p-6 rounded-2xl border">
+                <h2 class="font-bold mb-4">Profile Sync</h2>
+                <input type="file" id="resumeFiles" multiple class="mb-4 block w-full text-sm">
+                <textarea id="linkedinText" class="w-full p-3 border rounded-xl mb-4" placeholder="LinkedIn Bio..."></textarea>
+                <button id="syncBtn" class="w-full bg-black text-white py-3 rounded-xl font-bold">Sync & Save to Cloud</button>
             </section>
 
-            <!-- Profile Upload -->
-            <section class="bg-white p-6 rounded-2xl border border-slate-200">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="font-bold">2. Cloud Profile Context</h2>
-                    <span id="syncStatus" class="text-[10px] bg-slate-100 p-1 px-2 rounded font-bold uppercase">Ready</span>
-                </div>
-                <form id="profileForm" class="space-y-4">
-                    <input type="file" id="resumeFiles" multiple accept=".pdf,.docx" class="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-blue-50 file:text-blue-700">
-                    <textarea id="linkedinText" class="w-full p-3 bg-slate-50 border rounded-xl h-20 text-sm" placeholder="LinkedIn bio..."></textarea>
-                    <button type="submit" id="saveBtn" class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold">Sync & Save to Cloud</button>
-                </form>
+            <section class="bg-white p-6 rounded-2xl border">
+                <textarea id="jobDesc" rows="4" class="w-full p-3 border rounded-xl mb-4" placeholder="Job Description..."></textarea>
+                <button id="tailorBtn" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold">Tailor Resume</button>
             </section>
 
-            <!-- Job Input -->
-            <section class="bg-white p-6 rounded-2xl border border-slate-200">
-                <h2 class="font-bold mb-4">3. Target Job</h2>
-                <textarea id="jobDesc" rows="4" class="w-full p-3 bg-slate-50 border rounded-xl mb-4 text-sm" placeholder="Paste job description here..."></textarea>
-                <div class="grid grid-cols-2 gap-4">
-                    <button id="analyzeBtn" class="bg-amber-500 text-white py-3 rounded-xl font-bold">Analyze Fit</button>
-                    <button id="tailorBtn" class="bg-emerald-600 text-white py-3 rounded-xl font-bold">Tailor Resume</button>
-                </div>
-            </section>
-
-            <div id="outputArea" class="space-y-6">
-                <div id="analysisView" class="hidden p-6 bg-amber-50 border border-amber-100 rounded-2xl whitespace-pre-wrap text-sm text-amber-900"></div>
-                <div id="resumeView" class="hidden bg-white p-6 rounded-2xl border border-slate-200">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold">Tailored Draft</h3>
-                        <button id="downloadBtn" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold">Download .docx</button>
-                    </div>
-                    <div id="resumeText" class="font-mono text-[10px] whitespace-pre-wrap bg-slate-50 p-6 border rounded-xl max-h-80 overflow-y-auto"></div>
-                </div>
+            <div id="resumeView" class="hidden bg-white p-6 rounded-2xl border">
+                <button id="downloadBtn" class="bg-blue-600 text-white px-4 py-2 rounded mb-4">Download .docx</button>
+                <pre id="resumeText" class="bg-slate-100 p-4 rounded text-xs overflow-x-auto"></pre>
             </div>
         </main>
     </div>
@@ -72,41 +47,51 @@
         import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // 1. YOUR BACKEND URL (MUST BE HTTPS)
-        const BACKEND_URL = "https://your-backend-app.onrender.com"; 
-
+        // --- CONFIGURATION ---
+        const BACKEND_URL = "https://your-backend-app.onrender.com"; // MUST BE HTTPS
         const firebaseConfig = {
             apiKey: "AIzaSyBzUhTIuszpODRYti4gS7ks7ewbIxzvVDM",
             authDomain: "resumeparser-e6d7b.firebaseapp.com",
             projectId: "resumeparser-e6d7b",
             storageBucket: "resumeparser-e6d7b.firebasestorage.app",
             messagingSenderId: "504154767045",
-            appId: "1:504154767045:web:fd4db241e37215f3f57aac",
-            measurementId: "G-3RKLYGLMGD"
+            appId: "1:504154767045:web:fd4db241e37215f3f57aac"
         };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
         const provider = new GoogleAuthProvider();
-
         let currentUser = null;
-        let cloudProfile = null;
-        let currentTailoredResume = "";
 
-        const geminiKeyInput = document.getElementById('geminiKey');
-        geminiKeyInput.value = localStorage.getItem('gemini_api_key') || '';
-        geminiKeyInput.oninput = () => localStorage.setItem('gemini_api_key', geminiKeyInput.value);
+        // --- CORE API HELPER ---
+        async function apiCall(endpoint, method, body, isFile = false) {
+            const key = document.getElementById('geminiKey').value;
+            const headers = { 'x-gemini-key': key };
+            if (!isFile) headers['Content-Type'] = 'application/json';
 
-        // AUTH
-        onAuthStateChanged(auth, async (user) => {
+            try {
+                const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+                    method, headers, body: isFile ? body : JSON.stringify(body)
+                });
+                if (!response.ok) throw new Error(await response.text());
+                const type = response.headers.get("content-type");
+                return type.includes("json") ? response.json() : response.blob();
+            } catch (err) {
+                console.error("Fetch Error:", err);
+                alert("Failed to fetch. Ensure Backend is HTTPS and Brave Shields are OFF.");
+                throw err;
+            }
+        }
+
+        // --- AUTH LOGIC ---
+        onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
                 document.getElementById('loginBtn').classList.add('hidden');
                 document.getElementById('userInfo').classList.remove('hidden');
                 document.getElementById('appInterface').classList.remove('hidden');
                 document.getElementById('displayName').innerText = user.displayName;
-                fetchCloudProfile();
             } else {
                 document.getElementById('appInterface').classList.add('hidden');
             }
@@ -115,83 +100,54 @@
         document.getElementById('loginBtn').onclick = () => signInWithPopup(auth, provider);
         document.getElementById('logoutBtn').onclick = () => signOut(auth);
 
-        async function fetchCloudProfile() {
-            const docSnap = await getDoc(doc(db, "profiles", currentUser.uid));
-            if (docSnap.exists()) {
-                cloudProfile = docSnap.data();
-                document.getElementById('syncStatus').innerText = "Synced: " + cloudProfile.userName;
-                document.getElementById('linkedinText').value = cloudProfile.linkedinText || "";
-            }
-        }
-
-        // Bulletproof Networking Helper
-        async function apiCall(endpoint, method = 'POST', body = null, isFile = false) {
-            const headers = { 'x-gemini-key': geminiKeyInput.value };
-            if (!isFile) headers['Content-Type'] = 'application/json';
-
-            const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-                method,
-                headers,
-                body: isFile ? body : JSON.stringify(body)
-            });
-
-            if (!response.ok) {
-                const errText = await response.text();
-                throw new Error(errText || "Network response was not ok");
-            }
+        // --- SYNC LOGIC (Full File) ---
+        document.getElementById('syncBtn').onclick = async () => {
+            const btn = document.getElementById('syncBtn');
+            btn.innerText = "Syncing...";
             
-            const contentType = response.headers.get("content-type");
-            return contentType && contentType.includes("application/json") ? response.json() : response.blob();
-        }
-
-        document.getElementById('profileForm').onsubmit = async (e) => {
-            e.preventDefault();
             const fd = new FormData();
             const files = document.getElementById('resumeFiles').files;
-            for (let i = 0; i < files.length; i++) fd.append('resumes', files[i]);
+            for (let f of files) fd.append('resumes', f);
             fd.append('linkedinText', document.getElementById('linkedinText').value);
 
             try {
                 const data = await apiCall('/api/ingest-profile', 'POST', fd, true);
-                cloudProfile = { 
-                    userName: data.extractedName, 
-                    profileText: data.fullText,
-                    linkedinText: document.getElementById('linkedinText').value
-                };
-                await setDoc(doc(db, "profiles", currentUser.uid), cloudProfile);
-                alert("Profile Synced to Cloud!");
-                fetchCloudProfile();
-            } catch (err) { alert("Error: " + err.message); }
+                await setDoc(doc(db, "profiles", currentUser.uid), {
+                    userName: data.extractedName,
+                    profileText: data.fullText
+                });
+                alert("Profile Context Saved to Cloud!");
+            } catch (e) {} finally { btn.innerText = "Sync & Save to Cloud"; }
         };
 
-        document.getElementById('analyzeBtn').onclick = async () => {
-            const data = await apiCall('/api/analyze-suitability', 'POST', {
-                userName: cloudProfile.userName,
-                profileText: cloudProfile.profileText,
-                jobDescription: document.getElementById('jobDesc').value
-            });
-            document.getElementById('analysisView').innerText = data.analysis;
-            document.getElementById('analysisView').classList.remove('hidden');
-        };
-
+        // --- TAILOR LOGIC (Full File) ---
         document.getElementById('tailorBtn').onclick = async () => {
-            const data = await apiCall('/api/tailor-resume', 'POST', {
-                userName: cloudProfile.userName,
-                profileText: cloudProfile.profileText,
-                jobDescription: document.getElementById('jobDesc').value
-            });
-            currentTailoredResume = data.tailoredText;
-            document.getElementById('resumeText').innerText = currentTailoredResume;
-            document.getElementById('resumeView').classList.remove('hidden');
+            const btn = document.getElementById('tailorBtn');
+            btn.innerText = "AI is Writing...";
+            
+            const docSnap = await getDoc(doc(db, "profiles", currentUser.uid));
+            if (!docSnap.exists()) return alert("Sync profile first!");
+            
+            const profile = docSnap.data();
+            try {
+                const data = await apiCall('/api/tailor-resume', 'POST', {
+                    userName: profile.userName,
+                    profileText: profile.profileText,
+                    jobDescription: document.getElementById('jobDesc').value
+                });
+                document.getElementById('resumeText').innerText = data.tailoredText;
+                document.getElementById('resumeView').classList.remove('hidden');
+            } catch (e) {} finally { btn.innerText = "Tailor Resume"; }
         };
 
+        // --- DOWNLOAD LOGIC ---
         document.getElementById('downloadBtn').onclick = async () => {
-            const blob = await apiCall('/api/download-docx', 'POST', { resumeText: currentTailoredResume });
+            const blob = await apiCall('/api/download-docx', 'POST', { 
+                resumeText: document.getElementById('resumeText').innerText 
+            });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
-            a.download = `${cloudProfile.userName}_Resume.docx`;
-            a.click();
+            a.href = url; a.download = "Tailored_Resume.docx"; a.click();
         };
     </script>
 </body>
