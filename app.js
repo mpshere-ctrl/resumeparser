@@ -96,7 +96,7 @@ document.getElementById('syncBtn').onclick = async () => {
         for (const file of files) combinedText += await extractTextFromFile(file) + "\n";
 
         const genAI = new GoogleGenerativeAI(key);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
         const result = await model.generateContent(`Extract the full name from this text: ${combinedText.substring(0, 2000)}`);
         const name = result.response.text().trim();
 
