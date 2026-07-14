@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Career Copilot v3.1</title>
+    <title>Career Copilot v3.3 - Serverless</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Browser-side Libraries -->
+    <!-- Browser-side Libraries for PDF, DOCX, and File Generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js"></script>
@@ -13,10 +13,11 @@
 <body class="bg-slate-50 min-h-screen text-slate-900 font-sans">
     <div class="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
         
-        <header class="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border">
+        <!-- Header -->
+        <header class="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
             <div>
                 <h1 class="text-2xl font-black text-blue-600">Career Copilot</h1>
-                <p class="text-[10px] text-slate-400 font-bold uppercase">v3.1 - Serverless (GitHub Pages)</p>
+                <p class="text-[10px] text-slate-400 font-bold uppercase">v3.3 - Full Serverless Edition</p>
             </div>
             <div id="authArea">
                 <button id="loginBtn" class="bg-blue-600 text-white px-6 py-2 rounded-full font-bold hover:bg-blue-700 transition">Sign In with Google</button>
@@ -27,8 +28,10 @@
             </div>
         </header>
 
+        <!-- Main App Interface -->
         <main id="appInterface" class="hidden space-y-6">
-            <!-- 1. Gemini Key -->
+            
+            <!-- 1. Gemini API Key -->
             <section class="bg-white p-6 rounded-2xl border border-slate-200">
                 <label class="block text-xs font-bold mb-2 uppercase text-slate-500 tracking-widest">1. Gemini API Key</label>
                 <input type="password" id="geminiKey" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Paste AIzaSy... key here">
@@ -38,7 +41,7 @@
             <section class="bg-white p-6 rounded-2xl border border-slate-200">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="font-bold">2. Cloud Profile Context</h2>
-                    <span id="syncStatus" class="text-[10px] bg-slate-100 text-slate-500 p-1 px-2 rounded font-bold uppercase">Ready</span>
+                    <span id="syncStatus" class="text-[10px] bg-slate-100 text-slate-500 p-1 px-2 rounded font-bold uppercase">Checking Cloud...</span>
                 </div>
                 <div class="space-y-4">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -49,18 +52,34 @@
                 </div>
             </section>
 
-            <!-- 3. Target Job -->
+            <!-- 3. Target Job & Analysis -->
             <section class="bg-white p-6 rounded-2xl border border-slate-200">
-                <h2 class="font-bold mb-4">3. Target Job & Actions</h2>
-                <textarea id="jobDesc" rows="4" class="w-full p-3 bg-slate-50 border rounded-xl mb-4 text-sm" placeholder="Paste the job description here..."></textarea>
-                <button id="tailorBtn" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 transition">Tailor Resume with AI</button>
+                <h2 class="font-bold mb-4">3. Target Job & Analysis</h2>
+                <textarea id="jobDesc" rows="4" class="w-full p-3 bg-slate-50 border rounded-xl mb-4 text-sm" placeholder="Paste Job Description OR Job URL here..."></textarea>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <button id="analyzeBtn" class="w-full bg-amber-500 text-white py-3 rounded-xl font-bold hover:bg-amber-600 transition">Analyze Suitability</button>
+                    <button id="tailorBtn" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 transition">Tailor Resume</button>
+                </div>
             </section>
 
             <!-- Output Area -->
             <div id="outputArea" class="space-y-6">
+                
+                <!-- Suitability Report View -->
+                <div id="analysisArea" class="hidden space-y-4">
+                    <div class="bg-amber-50 border border-amber-200 p-6 rounded-2xl">
+                        <h3 class="text-amber-800 font-bold mb-2 flex items-center gap-2">
+                            <span class="text-lg">📊</span> Suitability Report
+                        </h3>
+                        <div id="analysisReport" class="text-sm text-amber-900 whitespace-pre-wrap leading-relaxed"></div>
+                    </div>
+                </div>
+
+                <!-- Tailored Resume View -->
                 <div id="resumeView" class="hidden bg-white p-6 rounded-2xl border border-slate-200">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold text-sm">Tailored Resume (Generated by Gemini 3.1)</h3>
+                        <h3 class="font-bold text-sm">Tailored Resume</h3>
                         <button id="downloadBtn" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700">Download .docx</button>
                     </div>
                     <div id="resumeText" class="font-mono text-[10px] whitespace-pre-wrap bg-slate-50 p-6 border rounded-xl max-h-96 overflow-y-auto"></div>
@@ -94,7 +113,7 @@
         // PDF.js Worker Setup
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        // --- FILE PARSING LOGIC (Runs in Browser) ---
+        // --- BROWSER-SIDE FILE PARSING ---
         async function extractTextFromFile(file) {
             const arrayBuffer = await file.arrayBuffer();
             if (file.name.endsWith('.docx')) {
@@ -113,7 +132,7 @@
             return "";
         }
 
-        // --- AUTH HANDLERS ---
+        // --- AUTH STATE MONITOR ---
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = user;
@@ -122,14 +141,17 @@
                 document.getElementById('appInterface').classList.remove('hidden');
                 document.getElementById('displayName').innerText = user.displayName;
                 
-                // Load saved key
+                // Load saved API key
                 document.getElementById('geminiKey').value = localStorage.getItem('gemini_key') || '';
                 
-                // Check Cloud Status
+                // Check Cloud Profile Status
                 const docSnap = await getDoc(doc(db, "profiles", user.uid));
+                const status = document.getElementById('syncStatus');
                 if (docSnap.exists()) {
-                    document.getElementById('syncStatus').innerText = "Cloud Profile: Active";
-                    document.getElementById('syncStatus').className = "text-[10px] bg-green-100 text-green-700 p-1 px-2 rounded font-bold uppercase";
+                    status.innerText = "Cloud Profile: " + docSnap.data().userName;
+                    status.className = "text-[10px] bg-green-100 text-green-700 p-1 px-2 rounded font-bold uppercase";
+                } else {
+                    status.innerText = "No Cloud Profile Found";
                 }
             } else {
                 document.getElementById('appInterface').classList.add('hidden');
@@ -141,14 +163,14 @@
         document.getElementById('loginBtn').onclick = () => signInWithPopup(auth, provider);
         document.getElementById('logoutBtn').onclick = () => signOut(auth);
 
-        // --- SYNC ACTION (Full File Context) ---
+        // --- SYNC ACTION (Local Parsing -> Cloud Save) ---
         document.getElementById('syncBtn').onclick = async () => {
             const key = document.getElementById('geminiKey').value;
             if (!key) return alert("Please enter your Gemini API Key first.");
             localStorage.setItem('gemini_key', key);
 
             const btn = document.getElementById('syncBtn');
-            btn.innerText = "Parsing Files Locally...";
+            btn.innerText = "Parsing Locally...";
             btn.disabled = true;
 
             try {
@@ -159,20 +181,20 @@
                     combinedText += await extractTextFromFile(file) + "\n";
                 }
 
-                // Call Gemini to get the user's name
+                // Extract Name using Gemini
                 const genAI = new GoogleGenerativeAI(key);
-                const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
+                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
                 const result = await model.generateContent(`Extract only the full name from this text: ${combinedText.substring(0, 2000)}`);
                 const name = result.response.text().trim();
 
-                // Save FULL context to Firestore
+                // Save Full Context to Firestore
                 await setDoc(doc(db, "profiles", currentUser.uid), {
                     userName: name,
                     profileText: combinedText,
                     updatedAt: Date.now()
                 });
 
-                alert("Profile and files processed! Context saved to Cloud.");
+                alert("Profile Context Processed and Saved to Cloud!");
                 location.reload();
             } catch (err) {
                 alert("Error: " + err.message);
@@ -182,14 +204,17 @@
             }
         };
 
-        // --- TAILOR ACTION ---
-        document.getElementById('tailorBtn').onclick = async () => {
+        // --- ANALYZE SUITABILITY ACTION ---
+        document.getElementById('analyzeBtn').onclick = async () => {
             const key = document.getElementById('geminiKey').value;
-            const job = document.getElementById('jobDesc').value;
-            if (!job) return alert("Paste a job description first.");
+            const jobInput = document.getElementById('jobDesc').value;
+            if (!jobInput) return alert("Please paste a Job Description or URL first.");
 
-            const btn = document.getElementById('tailorBtn');
-            btn.innerText = "Gemini 3.1 is writing...";
+            const btn = document.getElementById('analyzeBtn');
+            const reportArea = document.getElementById('analysisArea');
+            const reportDiv = document.getElementById('analysisReport');
+
+            btn.innerText = "Analyzing Fit...";
             btn.disabled = true;
 
             try {
@@ -198,26 +223,75 @@
                 const profile = docSnap.data();
 
                 const genAI = new GoogleGenerativeAI(key);
-                const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
+                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+                const prompt = `
+                    Act as an expert Technical Recruiter. 
+                    Compare the following Candidate Profile with the Job Description/URL provided.
+                    
+                    CANDIDATE PROFILE:
+                    ${profile.profileText}
+                    
+                    JOB DESCRIPTION/URL:
+                    ${jobInput}
+                    
+                    PROVIDE A SHORT REPORT:
+                    1. Match Score: (0-100%)
+                    2. Top 3 Strengths: (Why the candidate fits)
+                    3. Critical Gaps: (Missing skills or experience)
+                    4. Verdict: (One sentence advice)
+                    
+                    Use professional tone. No markdown symbols like * or #.
+                `;
+
+                const result = await model.generateContent(prompt);
+                reportDiv.innerText = result.response.text();
+                reportArea.classList.remove('hidden');
+                reportArea.scrollIntoView({ behavior: 'smooth' });
+
+            } catch (err) {
+                alert("Analysis Error: " + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Analyze Suitability";
+            }
+        };
+
+        // --- TAILOR RESUME ACTION ---
+        document.getElementById('tailorBtn').onclick = async () => {
+            const key = document.getElementById('geminiKey').value;
+            const job = document.getElementById('jobDesc').value;
+            if (!job) return alert("Paste a job description first.");
+
+            const btn = document.getElementById('tailorBtn');
+            btn.innerText = "AI is Writing...";
+            btn.disabled = true;
+
+            try {
+                const docSnap = await getDoc(doc(db, "profiles", currentUser.uid));
+                if (!docSnap.exists()) throw new Error("No profile found. Please Sync first.");
+                const profile = docSnap.data();
+
+                const genAI = new GoogleGenerativeAI(key);
+                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
                 const prompt = `Rewrite a professional resume for ${profile.userName} tailored to this job: ${job}. 
                 Use this background context: ${profile.profileText}. 
                 CONSTRAINT: Output ONLY plain text. Do NOT use markdown symbols like asterisks (*) or hashtags (#).`;
 
                 const result = await model.generateContent(prompt);
-                const tailoredText = result.response.text();
-
-                document.getElementById('resumeText').innerText = tailoredText;
+                document.getElementById('resumeText').innerText = result.response.text();
                 document.getElementById('resumeView').classList.remove('hidden');
+                document.getElementById('resumeView').scrollIntoView({ behavior: 'smooth' });
             } catch (err) {
                 alert(err.message);
             } finally {
                 btn.disabled = false;
-                btn.innerText = "Tailor Resume with AI";
+                btn.innerText = "Tailor Resume";
             }
         };
 
-        // --- DOWNLOAD ACTION (Browser-side Docx) ---
+        // --- DOWNLOAD DOCX ACTION ---
         document.getElementById('downloadBtn').onclick = async () => {
             const text = document.getElementById('resumeText').innerText;
             const docObj = new docx.Document({
