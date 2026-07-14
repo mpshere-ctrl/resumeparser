@@ -127,7 +127,7 @@ document.getElementById('analyzeBtn').onclick = async () => {
         const profile = docSnap.data();
 
         const genAI = new GoogleGenerativeAI(key);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
         const prompt = `Compare this profile: ${profile.profileText} to this job: ${job}. Provide a match score, strengths, and gaps. No markdown.`;
 
         const result = await model.generateContent(prompt);
@@ -150,7 +150,7 @@ document.getElementById('tailorBtn').onclick = async () => {
         const profile = docSnap.data();
 
         const genAI = new GoogleGenerativeAI(key);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-3,1-flash-lite" });
         const prompt = `Rewrite a resume for ${profile.userName} for this job: ${job}. Use context: ${profile.profileText}. Plain text only, no markdown.`;
 
         const result = await model.generateContent(prompt);
