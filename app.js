@@ -9,7 +9,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
-// 1. CRITICAL: Allow your GitHub Pages URL
+// 1. CORS CONFIGURATION (Crucial for GitHub Pages)
 app.use(cors({
     origin: ["https://mpshere-ctrl.github.io", "http://localhost:3000"],
     methods: ["GET", "POST"],
@@ -18,29 +18,36 @@ app.use(cors({
 
 app.use(express.json({ limit: '50mb' }));
 
+// Helper: Extract Text from Files
 async function extractText(file) {
-    if (file.mimetype === 'application/pdf') {
-        const data = await pdf(file.buffer);
-        return data.text;
-    } else if (file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-        const data = await mammoth.extractRawText({ buffer: file.buffer });
-        return data.value;
-    }
+    try {
+        if (file.mimetype === 'application/pdf') {
+            const data = await pdf(file.buffer);
+            return data.text;
+        } else if (file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+            const data = await mammoth.extractRawText({ buffer: file.buffer });
+            return data.value;
+        }
+    } catch (e) { console.error("Parsing Error:", e); return ""; }
     return "";
 }
 
-// ROUTE 1: Ingest (Returns full text to frontend)
+// ENDPOINT 1: Ingest (Extracts text and returns it to frontend)
 app.post('/api/ingest-profile', upload.array('resumes', 5), async (req, res) => {
     try {
+        const apiKey = req.headers['x-gemini-key'];
         let combinedText = req.body.linkedinText || "";
-        for (const file of req.files) {
-            combinedText += "\n" + await extractText(file);
+        
+        if (req.files) {
+            for (const file of req.files) {
+                combinedText += "\n" + await extractText(file);
+            }
         }
 
-        const genAI = new GoogleGenerativeAI(req.headers['x-gemini-key']);
+        const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
         
-        const result = await model.generateContent(`Extract the full name from this text: ${combinedText.substring(0, 1000)}`);
+        const result = await model.generateContent(`Extract the full name from this text. Return ONLY the name: ${combinedText.substring(0, 1500)}`);
         const name = result.response.text().trim();
 
         res.json({ extractedName: name, fullText: combinedText });
@@ -50,11 +57,13 @@ app.post('/api/ingest-profile', upload.array('resumes', 5), async (req, res) => 
     }
 });
 
-// ROUTE 2: Tailor (Receives full context every time)
+// ENDPOINT 2: Tailor (Receives the full context from Firestore via Frontend)
 app.post('/api/tailor-resume', async (req, res) => {
     try {
         const { userName, profileText, jobDescription } = req.body;
-        const genAI = new GoogleGenerativeAI(req.headers['x-gemini-key']);
+        const apiKey = req.headers['x-gemini-key'];
+
+        const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
 
         const prompt = `Rewrite a professional resume for ${userName}. 
@@ -69,16 +78,22 @@ app.post('/api/tailor-resume', async (req, res) => {
     }
 });
 
-// ROUTE 3: Download
+// ENDPOINT 3: Download Docx
 app.post('/api/download-docx', async (req, res) => {
-    const doc = new Document({
-        sections: [{
-            children: req.body.resumeText.split('\n').map(line => new Paragraph({ children: [new TextRun(line)] }))
-        }]
-    });
-    const b64 = await Packer.toBase64String(doc);
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    res.send(Buffer.from(b64, 'base64'));
+    try {
+        const doc = new Document({
+            sections: [{
+                children: req.body.resumeText.split('\n').map(line => new Paragraph({ children: [new TextRun(line)] }))
+            }]
+        });
+        const b64 = await Packer.toBase64String(doc);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        res.send(Buffer.from(b64, 'base64'));
+    } catch (error) { res.status(500).send(error.message); }
 });
 
-app.listen(process.env.PORT || 3000);
+// Health Check (To see if server is awake)
+app.get('/', (req, res) => res.send("Career Copilot Backend Active"));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
