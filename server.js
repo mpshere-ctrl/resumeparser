@@ -1,102 +1,127 @@
 const express = require('express');
 const multer = require('multer');
-const cors = require('cors');
-const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
-const { GoogleGenAI } = require('@google/genai');
+const pdf = require('pdf-parse');
+const cors = require('cors');
 const { Document, Packer, Paragraph, TextRun } = require('docx');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const app = express();
 const upload = multer({ 
     storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 } 
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
-// Middleware
-app.use(cors()); // Critical for GitHub Pages to talk to Render
-app.use(express.json({ limit: '10mb' }));
+// --- BULLETPROOF CORS CONFIG ---
+app.use(cors({
+    origin: ["https://mpshere-ctrl.github.io", "http://localhost:3000"],
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "x-gemini-key"]
+}));
 
-// 1. ENDPOINT: Process documents & Extract Name
+app.use(express.json({ limit: '50mb' }));
+
+// In-Memory Session Cache
+let userProfileSession = {
+    userName: "Candidate",
+    extractedProfileText: "",
+    isLoaded: false
+};
+
+// --- HELPER: TEXT EXTRACTION ---
+async function extractText(file) {
+    if (file.mimetype === 'application/pdf') {
+        const data = await pdf(file.buffer);
+        return data.text;
+    } else if (file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        const data = await mammoth.extractRawText({ buffer: file.buffer });
+        return data.value;
+    }
+    return "";
+}
+
+// --- ENDPOINTS ---
+
 app.post('/api/ingest-profile', upload.array('resumes', 5), async (req, res) => {
     try {
         const apiKey = req.headers['x-gemini-key'];
-        if (!apiKey) return res.status(400).json({ error: 'Gemini API Key missing.' });
+        if (!apiKey) return res.status(400).json({ error: "Missing Gemini Key" });
 
-        let combinedText = '';
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        let combinedText = req.body.linkedinText || "";
         if (req.files) {
             for (const file of req.files) {
-                if (file.mimetype === 'application/pdf') {
-                    const data = await pdfParse(file.buffer);
-                    combinedText += `\n${data.text}`;
-                } else {
-                    const data = await mammoth.extractRawText({ buffer: file.buffer });
-                    combinedText += `\n${data.value}`;
-                }
+                combinedText += "\n" + await extractText(file);
             }
         }
-        combinedText += `\n${req.body.linkedinText || ''}`;
 
-        const ai = new GoogleGenAI(apiKey);
-        const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
-        
-        const nameResult = await model.generateContent(`Extract ONLY the full name from this text. If not found, say "Candidate". Text: ${combinedText.slice(0, 2000)}`);
-        const extractedName = nameResult.response.text().trim();
+        // Auto-extract name
+        const prompt = `Extract only the full name from this text. Return ONLY the name: ${combinedText.substring(0, 2000)}`;
+        const result = await model.generateContent(prompt);
+        const name = result.response.text().trim();
 
-        res.json({ extractedName, fullText: combinedText });
+        userProfileSession = {
+            userName: name || "Candidate",
+            extractedProfileText: combinedText,
+            isLoaded: true
+        };
+
+        res.json({ 
+            extractedName: userProfileSession.userName, 
+            fullText: userProfileSession.extractedProfileText 
+        });
+    } catch (error) {
+        console.error("Ingest Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/analyze-suitability', async (req, res) => {
+    try {
+        const { userName, profileText, jobDescription } = req.body;
+        const genAI = new GoogleGenerativeAI(req.headers['x-gemini-key']);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        const prompt = `Analyze how well ${userName} fits this job. Profile: ${profileText} Job: ${jobDescription}`;
+        const result = await model.generateContent(prompt);
+        res.json({ analysis: result.response.text() });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// 2. ENDPOINT: Suitability Analysis
-app.post('/api/analyze-suitability', async (req, res) => {
-    try {
-        const { profileText, userName, jobDescription } = req.body;
-        const ai = new GoogleGenAI(req.headers['x-gemini-key']);
-        const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
-
-        const prompt = `Candidate: ${userName}. Analyze suitability for this job. Provide match % and strengths/gaps.
-        BACKGROUND: ${profileText}
-        JOB: ${jobDescription}`;
-
-        const result = await model.generateContent(prompt);
-        res.json({ analysis: result.response.text() });
-    } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
-// 3. ENDPOINT: Resume Tailoring
 app.post('/api/tailor-resume', async (req, res) => {
     try {
-        const { profileText, userName, jobDescription } = req.body;
-        const ai = new GoogleGenAI(req.headers['x-gemini-key']);
-        const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const { userName, profileText, jobDescription } = req.body;
+        const genAI = new GoogleGenerativeAI(req.headers['x-gemini-key']);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-        const prompt = `Rewrite a professional resume for ${userName} for this job. 
-        STRICT: Use PLAIN TEXT ONLY. No markdown (*, #). 
-        JOB: ${jobDescription}
-        PROFILE: ${profileText}`;
-
+        const prompt = `Rewrite a resume for ${userName} based on: ${profileText}. Target Job: ${jobDescription}. 
+        CONSTRAINT: Use plain text only. Do NOT use markdown (*, #, **).`;
+        
         const result = await model.generateContent(prompt);
         res.json({ tailoredText: result.response.text() });
-    } catch (error) { res.status(500).json({ error: error.message }); }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
-// 4. ENDPOINT: DOCX Generation
 app.post('/api/download-docx', async (req, res) => {
-    try {
-        const { resumeText } = req.body;
-        const doc = new Document({
-            sections: [{
-                children: resumeText.split('\n').map(line => 
-                    new Paragraph({ children: [new TextRun({ text: line, size: 22, font: "Arial" })] })
-                ),
-            }],
-        });
-        const buffer = await Packer.toBuffer(doc);
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-        res.send(buffer);
-    } catch (error) { res.status(500).send("DOCX error"); }
+    const { resumeText } = req.body;
+    const doc = new Document({
+        sections: [{
+            children: resumeText.split('\n').map(line => new Paragraph({
+                children: [new TextRun(line)]
+            }))
+        }]
+    });
+
+    const b64string = await Packer.toBase64String(doc);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.send(Buffer.from(b64string, 'base64'));
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Backend live on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server active on port ${PORT}`));
