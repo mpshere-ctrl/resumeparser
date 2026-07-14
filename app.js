@@ -19,10 +19,10 @@ const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 let currentUser = null;
 
-// PDF.js Worker Setup (Required for browser-side PDF reading)
+// PDF.js Worker Setup
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-// --- 2. FILE PARSING HELPERS (Browser-Side) ---
+// --- 2. HELPERS ---
 async function extractTextFromFile(file) {
     const arrayBuffer = await file.arrayBuffer();
     if (file.name.endsWith('.docx')) {
@@ -41,175 +41,162 @@ async function extractTextFromFile(file) {
     return "";
 }
 
-// --- 3. AUTHENTICATION MONITOR ---
-onAuthStateChanged(auth, async (user) => {
-    const loginBtn = document.getElementById('loginBtn');
-    const userInfo = document.getElementById('userInfo');
-    const appInterface = document.getElementById('appInterface');
-    const displayName = document.getElementById('displayName');
-    const syncStatus = document.getElementById('syncStatus');
+function appendChatMessage(role, text) {
+    const chatBox = document.getElementById('chatBox');
+    const msgDiv = document.createElement('div');
+    msgDiv.className = role === 'user' ? 'text-right' : 'text-left';
+    const span = document.createElement('span');
+    span.className = role === 'user' 
+        ? 'inline-block bg-blue-600 text-white p-3 rounded-2xl rounded-tr-none text-xs max-w-[80%]' 
+        : 'inline-block bg-white border border-slate-200 p-3 rounded-2xl rounded-tl-none text-xs max-w-[80%]';
+    span.innerText = text;
+    msgDiv.appendChild(span);
+    chatBox.appendChild(msgDiv);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
 
+// --- 3. AUTH MONITOR ---
+onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
-        loginBtn.classList.add('hidden');
-        userInfo.classList.remove('hidden');
-        appInterface.classList.remove('hidden');
-        displayName.innerText = user.displayName;
-        
-        // Load saved API key from local storage
+        document.getElementById('loginBtn').classList.add('hidden');
+        document.getElementById('userInfo').classList.remove('hidden');
+        document.getElementById('appInterface').classList.remove('hidden');
+        document.getElementById('displayName').innerText = user.displayName;
         document.getElementById('geminiKey').value = localStorage.getItem('gemini_key') || '';
         
-        // Check Cloud Profile
         const docSnap = await getDoc(doc(db, "profiles", user.uid));
         if (docSnap.exists()) {
-            syncStatus.innerText = "Cloud Profile: " + docSnap.data().userName;
-            syncStatus.className = "text-[10px] bg-green-100 text-green-700 p-1 px-2 rounded font-bold uppercase";
-        } else {
-            syncStatus.innerText = "No Cloud Profile Found";
+            document.getElementById('syncStatus').innerText = "Cloud Profile: " + docSnap.data().userName;
+            document.getElementById('syncStatus').className = "text-[10px] bg-green-100 text-green-700 p-1 px-2 rounded font-bold uppercase";
         }
     } else {
-        appInterface.classList.add('hidden');
-        loginBtn.classList.remove('hidden');
-        userInfo.classList.add('hidden');
+        document.getElementById('appInterface').classList.add('hidden');
+        document.getElementById('loginBtn').classList.remove('hidden');
+        document.getElementById('userInfo').classList.add('hidden');
     }
 });
 
-// Auth Actions
 document.getElementById('loginBtn').onclick = () => signInWithPopup(auth, provider);
 document.getElementById('logoutBtn').onclick = () => signOut(auth);
 
-// --- 4. SYNC ACTION (Process Files & Save to Firestore) ---
+// --- 4. SYNC ACTION ---
 document.getElementById('syncBtn').onclick = async () => {
     const key = document.getElementById('geminiKey').value;
-    if (!key) return alert("Please enter your Gemini API Key first.");
+    if (!key) return alert("Enter Gemini Key!");
     localStorage.setItem('gemini_key', key);
 
     const btn = document.getElementById('syncBtn');
-    btn.innerText = "Parsing Locally...";
+    btn.innerText = "Processing...";
     btn.disabled = true;
 
     try {
         let combinedText = document.getElementById('linkedinText').value + "\n";
         const files = document.getElementById('resumeFiles').files;
-        
-        for (const file of files) {
-            combinedText += await extractTextFromFile(file) + "\n";
-        }
+        for (const file of files) combinedText += await extractTextFromFile(file) + "\n";
 
-        // Extract Name using Gemini
         const genAI = new GoogleGenerativeAI(key);
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const result = await model.generateContent(`Extract only the full name from this text: ${combinedText.substring(0, 2000)}`);
+        const result = await model.generateContent(`Extract the full name from this text: ${combinedText.substring(0, 2000)}`);
         const name = result.response.text().trim();
 
-        // Save Full Context to Firestore
         await setDoc(doc(db, "profiles", currentUser.uid), {
             userName: name,
             profileText: combinedText,
             updatedAt: Date.now()
         });
 
-        alert("Profile context processed and saved to Cloud!");
+        alert("Profile Saved!");
         location.reload();
-    } catch (err) {
-        alert("Sync Error: " + err.message);
-    } finally {
-        btn.disabled = false;
-        btn.innerText = "Process & Save to Cloud";
-    }
+    } catch (err) { alert(err.message); }
+    finally { btn.disabled = false; btn.innerText = "Process & Save to Cloud"; }
 };
 
-// --- 5. ANALYZE SUITABILITY ACTION ---
+// --- 5. ANALYZE ACTION ---
 document.getElementById('analyzeBtn').onclick = async () => {
     const key = document.getElementById('geminiKey').value;
-    const jobInput = document.getElementById('jobDesc').value;
-    if (!jobInput) return alert("Please paste a Job Description or URL first.");
+    const job = document.getElementById('jobDesc').value;
+    if (!job) return alert("Paste Job Description!");
 
     const btn = document.getElementById('analyzeBtn');
-    const reportArea = document.getElementById('analysisArea');
-    const reportDiv = document.getElementById('analysisReport');
-
-    btn.innerText = "Analyzing Fit...";
+    btn.innerText = "Analyzing...";
     btn.disabled = true;
 
     try {
         const docSnap = await getDoc(doc(db, "profiles", currentUser.uid));
-        if (!docSnap.exists()) throw new Error("No profile found. Please Sync first.");
         const profile = docSnap.data();
 
         const genAI = new GoogleGenerativeAI(key);
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-        const prompt = `
-            Act as an expert Technical Recruiter. 
-            Compare the following Candidate Profile with the Job Description/URL provided.
-            
-            CANDIDATE PROFILE:
-            ${profile.profileText}
-            
-            JOB DESCRIPTION/URL:
-            ${jobInput}
-            
-            PROVIDE A SHORT REPORT:
-            1. Match Score: (0-100%)
-            2. Top 3 Strengths: (Why the candidate fits)
-            3. Critical Gaps: (Missing skills or experience)
-            4. Verdict: (One sentence advice)
-            
-            Use professional tone. No markdown symbols like * or #.
-        `;
+        const prompt = `Compare this profile: ${profile.profileText} to this job: ${job}. Provide a match score, strengths, and gaps. No markdown.`;
 
         const result = await model.generateContent(prompt);
-        reportDiv.innerText = result.response.text();
-        reportArea.classList.remove('hidden');
-        reportArea.scrollIntoView({ behavior: 'smooth' });
-
-    } catch (err) {
-        alert("Analysis Error: " + err.message);
-    } finally {
-        btn.disabled = false;
-        btn.innerText = "Analyze Suitability";
-    }
+        document.getElementById('analysisReport').innerText = result.response.text();
+        document.getElementById('analysisArea').classList.remove('hidden');
+    } catch (err) { alert(err.message); }
+    finally { btn.disabled = false; btn.innerText = "Analyze Suitability"; }
 };
 
-// --- 6. TAILOR RESUME ACTION ---
+// --- 6. TAILOR ACTION ---
 document.getElementById('tailorBtn').onclick = async () => {
     const key = document.getElementById('geminiKey').value;
     const job = document.getElementById('jobDesc').value;
-    if (!job) return alert("Paste a job description first.");
-
     const btn = document.getElementById('tailorBtn');
-    const resumeView = document.getElementById('resumeView');
-    const resumeText = document.getElementById('resumeText');
-
-    btn.innerText = "AI is Writing...";
+    btn.innerText = "Writing...";
     btn.disabled = true;
 
     try {
         const docSnap = await getDoc(doc(db, "profiles", currentUser.uid));
-        if (!docSnap.exists()) throw new Error("No profile found. Please Sync first.");
         const profile = docSnap.data();
 
         const genAI = new GoogleGenerativeAI(key);
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-        const prompt = `Rewrite a professional resume for ${profile.userName} tailored to this job: ${job}. 
-        Use this background context: ${profile.profileText}. 
-        CONSTRAINT: Output ONLY plain text. Do NOT use markdown symbols like asterisks (*) or hashtags (#).`;
+        const prompt = `Rewrite a resume for ${profile.userName} for this job: ${job}. Use context: ${profile.profileText}. Plain text only, no markdown.`;
 
         const result = await model.generateContent(prompt);
-        resumeText.innerText = result.response.text();
-        resumeView.classList.remove('hidden');
-        resumeView.scrollIntoView({ behavior: 'smooth' });
+        document.getElementById('resumeText').innerText = result.response.text();
+        document.getElementById('resumeView').classList.remove('hidden');
+    } catch (err) { alert(err.message); }
+    finally { btn.disabled = false; btn.innerText = "Tailor Resume"; }
+};
+
+// --- 7. CHATBOT ACTION (Gemini 3.1 Flash-Lite) ---
+document.getElementById('chatSendBtn').onclick = async () => {
+    const key = document.getElementById('geminiKey').value;
+    const userInput = document.getElementById('chatInput').value;
+    const jobDesc = document.getElementById('jobDesc').value;
+    if (!userInput) return;
+
+    appendChatMessage('user', userInput);
+    document.getElementById('chatInput').value = "";
+
+    try {
+        const docSnap = await getDoc(doc(db, "profiles", currentUser.uid));
+        const profile = docSnap.data();
+        const tailoredResume = document.getElementById('resumeText').innerText;
+
+        const genAI = new GoogleGenerativeAI(key);
+        // Using the requested Gemini 3.1 Flash-Lite model
+        const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
+
+        const systemContext = `
+            You are an expert Career Coach. You have access to the following data:
+            USER PROFILE: ${profile.profileText}
+            TARGET JOB: ${jobDesc || "Not provided yet"}
+            TAILORED RESUME: ${tailoredResume || "Not generated yet"}
+            
+            Use this data to answer the user's specific questions. 
+            Be concise, professional, and helpful. No markdown symbols.
+        `;
+
+        const result = await model.generateContent(`${systemContext}\n\nUSER QUESTION: ${userInput}`);
+        appendChatMessage('ai', result.response.text());
     } catch (err) {
-        alert("Tailor Error: " + err.message);
-    } finally {
-        btn.disabled = false;
-        btn.innerText = "Tailor Resume";
+        appendChatMessage('ai', "Error: " + err.message);
     }
 };
 
-// --- 7. DOWNLOAD DOCX ACTION ---
+// --- 8. DOWNLOAD ---
 document.getElementById('downloadBtn').onclick = async () => {
     const text = document.getElementById('resumeText').innerText;
     const docObj = new docx.Document({
@@ -219,11 +206,8 @@ document.getElementById('downloadBtn').onclick = async () => {
             }))
         }]
     });
-
     const blob = await docx.Packer.toBlob(docObj);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = "Tailored_Resume.docx";
-    a.click();
+    a.href = url; a.download = "Tailored_Resume.docx"; a.click();
 };
