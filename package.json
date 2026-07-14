@@ -1,12 +1,11 @@
 {
-  "name": "gemini-career-copilot-pro",
-  "version": "1.1.0",
-  "type": "module",
-  "main": "server.mjs",
+  "name": "gemini-career-copilot",
+  "version": "1.0.0",
+  "main": "server.js",
   "dependencies": {
     "@google/genai": "^0.21.0",
+    "cors": "^2.8.5",
     "docx": "^9.0.3",
-    "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "mammoth": "^1.8.0",
     "multer": "^1.4.5-lts.1",
