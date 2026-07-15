@@ -21,7 +21,7 @@ let lastTailoredJson = null;
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-// --- THEME & UI ---
+// --- THEME & TABS ---
 const themeToggle = document.getElementById('themeToggle');
 const body = document.body;
 
@@ -127,7 +127,6 @@ if (logoutBtn) logoutBtn.onclick = () => signOut(auth);
 
 // --- CORE ACTIONS ---
 
-// INCREMENTAL UPDATE
 const syncBtn = document.getElementById('syncBtn');
 if (syncBtn) {
     syncBtn.onclick = async () => {
@@ -137,36 +136,28 @@ if (syncBtn) {
         syncBtn.innerText = "Updating...";
         syncBtn.disabled = true;
         try {
-            // Get existing profile text
             const docSnap = await getDoc(doc(db, "profiles", currentUser.uid));
             let existingText = docSnap.exists() ? docSnap.data().profileText : "";
-
             let newText = document.getElementById('linkedinText').value + "\n";
             const files = document.getElementById('resumeFiles').files;
             for (const file of files) newText += await extractTextFromFile(file) + "\n";
-            
             const combinedText = existingText + "\n" + newText;
-
             const genAI = new GoogleGenerativeAI(key);
             const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
             const result = await model.generateContent(`Extract the full name from this data. Return only the name: ${combinedText.substring(0, 2000)}`);
             const name = result.response.text().trim();
-            
             await setDoc(doc(db, "profiles", currentUser.uid), { userName: name, profileText: combinedText, updatedAt: Date.now() });
-            alert("Profile context updated.");
             location.reload();
         } catch (err) { console.error(err); }
-        finally { syncBtn.disabled = false; syncBtn.innerText = "Update Profile Context"; }
+        finally { syncBtn.disabled = false; syncBtn.innerText = "Update Profile"; }
     };
 }
 
-// CLEAR HISTORY
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 if (clearHistoryBtn) {
     clearHistoryBtn.onclick = async () => {
-        if (confirm("This will permanently delete your profile context and history. Continue?")) {
+        if (confirm("Permanently delete profile context?")) {
             await deleteDoc(doc(db, "profiles", currentUser.uid));
-            alert("History cleared.");
             location.reload();
         }
     };
@@ -185,7 +176,10 @@ if (analyzeBtn) {
             const profile = docSnap.data();
             const genAI = new GoogleGenerativeAI(key);
             const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
-            const prompt = `Act as a discriminatively honest Technical Recruiter. Assessment: ${profile.profileText} vs Job: ${job}. Plain text only. No sugarcoating. No markdown.`;
+            const prompt = `Act as a discriminatively honest Technical Recruiter. 
+            CONSTRAINT: DO NOT USE MARKDOWN SYMBOLS. NO HASHTAGS (#), NO ASTERISKS (*).
+            Use PLAIN TEXT only. Use ALL CAPS for headers. Use simple dashes (-) for lists.
+            Assessment: ${profile.profileText} vs Job: ${job}.`;
             const result = await model.generateContent(prompt);
             document.getElementById('analysisReport').innerText = cleanAiOutput(result.response.text());
             document.getElementById('analysisArea').classList.remove('hidden');
@@ -216,7 +210,7 @@ if (tailorBtn) {
             document.getElementById('resumeText').innerText = JSON.stringify(lastTailoredJson, null, 2);
             document.getElementById('resumeView').classList.remove('hidden');
         } catch (err) { console.error(err); }
-        finally { tailorBtn.disabled = false; tailorBtn.innerText = "Generate ATS Resume"; }
+        finally { tailorBtn.disabled = false; tailorBtn.innerText = "Generate Document"; }
     };
 }
 
@@ -241,56 +235,57 @@ if (chatSendBtn) {
     };
 }
 
-// --- ATS-FRIENDLY DOCX ENGINE ---
-document.getElementById('downloadBtn').onclick = async () => {
-    if (!lastTailoredJson) return;
-    const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } = window.docx;
-    
-    // Format Contact String
-    const contactInfo = `${lastTailoredJson.contact.email} | ${lastTailoredJson.contact.phone}\n${lastTailoredJson.contact.address}\n${lastTailoredJson.contact.linkedin}`;
-
-    const children = [
-        new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: lastTailoredJson.name.toUpperCase(), bold: true, size: 28, font: "Arial" })] }),
-        new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: contactInfo, size: 18, font: "Arial" })], spacing: { after: 300 } }),
+const downloadBtn = document.getElementById('downloadBtn');
+if (downloadBtn) {
+    downloadBtn.onclick = async () => {
+        if (!lastTailoredJson) return;
+        // FIX: Access docx through standard global variable
+        const docxLib = window.docx;
+        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } = docxLib;
         
-        new Paragraph({ text: "SUMMARY", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } } }),
-        new Paragraph({ children: [new TextRun({ text: lastTailoredJson.summary, font: "Arial", size: 20 })], spacing: { before: 150, after: 300 } }),
+        const contactInfo = `${lastTailoredJson.contact.email} | ${lastTailoredJson.contact.phone}\n${lastTailoredJson.contact.address}\n${lastTailoredJson.contact.linkedin}`;
 
-        new Paragraph({ text: "EXPERIENCE", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } } }),
-    ];
+        const children = [
+            new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: lastTailoredJson.name.toUpperCase(), bold: true, size: 28, font: "Arial" })] }),
+            new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: contactInfo, size: 18, font: "Arial" })], spacing: { after: 300 } }),
+            new Paragraph({ text: "SUMMARY", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } } }),
+            new Paragraph({ children: [new TextRun({ text: lastTailoredJson.summary, font: "Arial", size: 20 })], spacing: { before: 150, after: 300 } }),
+            new Paragraph({ text: "EXPERIENCE", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } } }),
+        ];
 
-    lastTailoredJson.experience.forEach(exp => {
-        children.push(new Paragraph({
-            spacing: { before: 200 },
-            children: [
-                new TextRun({ text: exp.title, bold: true, font: "Arial", size: 20 }),
-                new TextRun({ text: `\t${exp.date}`, bold: true, font: "Arial", size: 20 }),
-            ],
-        }));
-        children.push(new Paragraph({ children: [new TextRun({ text: exp.company, italic: true, font: "Arial", size: 20 })], spacing: { after: 100 } }));
-        exp.bullets.forEach(b => {
-            children.push(new Paragraph({ text: b.replace(/[*#]/g, ''), bullet: { level: 0 }, spacing: { before: 50 }, font: "Arial" }));
+        lastTailoredJson.experience.forEach(exp => {
+            children.push(new Paragraph({
+                spacing: { before: 200 },
+                children: [
+                    new TextRun({ text: exp.title, bold: true, font: "Arial", size: 20 }),
+                    new TextRun({ text: `\t${exp.date}`, bold: true, font: "Arial", size: 20 }),
+                ],
+            }));
+            children.push(new Paragraph({ children: [new TextRun({ text: exp.company, italic: true, font: "Arial", size: 20 })], spacing: { after: 100 } }));
+            exp.bullets.forEach(b => {
+                children.push(new Paragraph({ text: b.replace(/[*#]/g, ''), bullet: { level: 0 }, spacing: { before: 50 }, font: "Arial" }));
+            });
         });
-    });
 
-    children.push(new Paragraph({ text: "EDUCATION", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } }, spacing: { before: 300 } }));
-    lastTailoredJson.education.forEach(edu => {
-        children.push(new Paragraph({
-            spacing: { before: 150 },
-            children: [
-                new TextRun({ text: edu.degree, bold: true, font: "Arial", size: 20 }),
-                new TextRun({ text: `\t${edu.date}`, bold: true, font: "Arial", size: 20 }),
-            ],
-        }));
-        children.push(new Paragraph({ children: [new TextRun({ text: edu.school, font: "Arial", size: 20 })] }));
-    });
+        children.push(new Paragraph({ text: "EDUCATION", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } }, spacing: { before: 300 } }));
+        lastTailoredJson.education.forEach(edu => {
+            children.push(new Paragraph({
+                spacing: { before: 150 },
+                children: [
+                    new TextRun({ text: edu.degree, bold: true, font: "Arial", size: 20 }),
+                    new TextRun({ text: `\t${edu.date}`, bold: true, font: "Arial", size: 20 }),
+                ],
+            }));
+            children.push(new Paragraph({ children: [new TextRun({ text: edu.school, font: "Arial", size: 20 })] }));
+        });
 
-    children.push(new Paragraph({ text: "SKILLS", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } }, spacing: { before: 300 } }));
-    children.push(new Paragraph({ text: lastTailoredJson.skills.join(", "), spacing: { before: 150 }, font: "Arial", size: 20 }));
+        children.push(new Paragraph({ text: "SKILLS", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } }, spacing: { before: 300 } }));
+        children.push(new Paragraph({ text: lastTailoredJson.skills.join(", "), spacing: { before: 150 }, font: "Arial", size: 20 }));
 
-    const docObj = new Document({ sections: [{ properties: { page: { margin: { top: 720, bottom: 720, left: 720, right: 720 } } }, children }] });
-    const blob = await Packer.toBlob(docObj);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `${lastTailoredJson.name.replace(/\s/g, "_")}_Resume.docx`; a.click();
-};
+        const docObj = new Document({ sections: [{ properties: { page: { margin: { top: 720, bottom: 720, left: 720, right: 720 } } }, children }] });
+        const blob = await Packer.toBlob(docObj);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `${lastTailoredJson.name.replace(/\s/g, "_")}_Resume.docx`; a.click();
+    };
+}
