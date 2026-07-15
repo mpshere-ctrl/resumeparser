@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Career Copilot v4.0</title>
+    <title>Career Copilot v4.2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Browser-side Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
@@ -17,10 +17,10 @@
         <header class="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
             <div>
                 <h1 class="text-2xl font-black text-blue-600">Career Copilot</h1>
-                <p class="text-[10px] text-slate-400 font-bold uppercase">v4.0 - AI Chat Integration</p>
+                <p class="text-[10px] text-slate-400 font-bold uppercase">v4.2 - Gemini 3.1 Flash-Lite Only</p>
             </div>
             <div id="authArea">
-                <button id="loginBtn" class="bg-blue-600 text-white px-6 py-2 rounded-full font-bold">Sign In with Google</button>
+                <button id="loginBtn" class="bg-blue-600 text-white px-6 py-2 rounded-full font-bold hover:bg-blue-700 transition">Sign In with Google</button>
                 <div id="userInfo" class="hidden flex items-center gap-4">
                     <span id="displayName" class="text-sm font-bold"></span>
                     <button id="logoutBtn" class="text-xs text-red-500 hover:underline">Logout</button>
@@ -32,8 +32,8 @@
             
             <!-- 1. Gemini API Key -->
             <section class="bg-white p-6 rounded-2xl border border-slate-200">
-                <label class="block text-xs font-bold mb-2 uppercase text-slate-500">1. Gemini API Key</label>
-                <input type="password" id="geminiKey" class="w-full p-3 bg-slate-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Paste AIzaSy... key here">
+                <label class="block text-xs font-bold mb-2 uppercase text-slate-500 tracking-widest">1. Gemini API Key</label>
+                <input type="password" id="geminiKey" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Paste AIzaSy... key here">
             </section>
 
             <!-- 2. Profile Context -->
@@ -44,8 +44,8 @@
                 </div>
                 <div class="space-y-4">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <input type="file" id="resumeFiles" multiple accept=".pdf,.docx" class="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-blue-50 file:text-blue-700">
-                        <textarea id="linkedinText" class="w-full p-3 bg-slate-50 border rounded-xl h-20 text-sm" placeholder="LinkedIn bio..."></textarea>
+                        <input type="file" id="resumeFiles" multiple accept=".pdf,.docx" class="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                        <textarea id="linkedinText" class="w-full p-3 bg-slate-50 border rounded-xl h-20 text-sm" placeholder="LinkedIn bio or summary..."></textarea>
                     </div>
                     <button id="syncBtn" class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-black transition">Process & Save to Cloud</button>
                 </div>
@@ -54,10 +54,10 @@
             <!-- 3. Target Job & Analysis -->
             <section class="bg-white p-6 rounded-2xl border border-slate-200">
                 <h2 class="font-bold mb-4">3. Target Job & Analysis</h2>
-                <textarea id="jobDesc" rows="4" class="w-full p-3 bg-slate-50 border rounded-xl mb-4 text-sm" placeholder="Paste Job Description or URL..."></textarea>
+                <textarea id="jobDesc" rows="4" class="w-full p-3 bg-slate-50 border rounded-xl mb-4 text-sm" placeholder="Paste Job Description or Job URL here..."></textarea>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <button id="analyzeBtn" class="w-full bg-amber-500 text-white py-3 rounded-xl font-bold hover:bg-amber-600">Analyze Suitability</button>
-                    <button id="tailorBtn" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700">Tailor Resume</button>
+                    <button id="analyzeBtn" class="w-full bg-amber-500 text-white py-3 rounded-xl font-bold hover:bg-amber-600 transition">Analyze Suitability</button>
+                    <button id="tailorBtn" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 transition">Tailor Resume</button>
                 </div>
             </section>
 
@@ -65,21 +65,23 @@
             <div id="outputArea" class="space-y-6">
                 <div id="analysisArea" class="hidden space-y-4">
                     <div class="bg-amber-50 border border-amber-200 p-6 rounded-2xl">
-                        <h3 class="text-amber-800 font-bold mb-2">📊 Suitability Report</h3>
-                        <div id="analysisReport" class="text-sm text-amber-900 whitespace-pre-wrap"></div>
+                        <h3 class="text-amber-800 font-bold mb-2 flex items-center gap-2">
+                            <span class="text-lg">📊</span> Suitability Report
+                        </h3>
+                        <div id="analysisReport" class="text-sm text-amber-900 whitespace-pre-wrap leading-relaxed"></div>
                     </div>
                 </div>
 
                 <div id="resumeView" class="hidden bg-white p-6 rounded-2xl border border-slate-200">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="font-bold text-sm">Tailored Resume</h3>
-                        <button id="downloadBtn" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold">Download .docx</button>
+                        <button id="downloadBtn" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700">Download .docx</button>
                     </div>
                     <div id="resumeText" class="font-mono text-[10px] whitespace-pre-wrap bg-slate-50 p-6 border rounded-xl max-h-96 overflow-y-auto"></div>
                 </div>
             </div>
 
-            <!-- 4. Chat Copilot Section -->
+            <!-- 4. Chat Coach Section -->
             <section class="bg-white p-6 rounded-2xl border border-blue-200 shadow-lg shadow-blue-50">
                 <h2 class="font-bold mb-4 flex items-center gap-2 text-blue-600">
                     <span>💬</span> Chat with your Career Coach
