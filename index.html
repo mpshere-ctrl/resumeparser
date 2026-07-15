@@ -1,245 +1,142 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
-
-// --- 1. FIREBASE CONFIGURATION ---
-const firebaseConfig = {
-    apiKey: "AIzaSyBzUhTIuszpODRYti4gS7ks7ewbIxzvVDM",
-    authDomain: "resumeparser-e6d7b.firebaseapp.com",
-    projectId: "resumeparser-e6d7b",
-    storageBucket: "resumeparser-e6d7b.firebasestorage.app",
-    messagingSenderId: "504154767045",
-    appId: "1:504154767045:web:fd4db241e37215f3f57aac"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const provider = new GoogleAuthProvider();
-let currentUser = null;
-
-// PDF.js Worker Setup
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-// --- 2. HELPERS ---
-async function extractTextFromFile(file) {
-    const arrayBuffer = await file.arrayBuffer();
-    if (file.name.endsWith('.docx')) {
-        const result = await mammoth.extractRawText({ arrayBuffer });
-        return result.value;
-    } else if (file.name.endsWith('.pdf')) {
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        let fullText = "";
-        for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const content = await page.getTextContent();
-            fullText += content.items.map(s => s.str).join(" ") + "\n";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResumeParser</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js"></script>
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top left, #0f172a, #020617);
+            background-attachment: fixed;
         }
-        return fullText;
-    }
-    return "";
-}
-
-function appendChatMessage(role, text) {
-    const chatBox = document.getElementById('chatBox');
-    const msgDiv = document.createElement('div');
-    msgDiv.className = role === 'user' ? 'text-right' : 'text-left';
-    const span = document.createElement('span');
-    span.className = role === 'user' 
-        ? 'inline-block bg-blue-600 text-white p-3 rounded-2xl rounded-tr-none text-xs max-w-[80%]' 
-        : 'inline-block bg-white border border-slate-200 p-3 rounded-2xl rounded-tl-none text-xs max-w-[80%]';
-    span.innerText = text;
-    msgDiv.appendChild(span);
-    chatBox.appendChild(msgDiv);
-    chatBox.scrollTop = chatBox.scrollHeight;
-}
-
-// --- 3. AUTH MONITOR ---
-onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        currentUser = user;
-        document.getElementById('loginBtn').classList.add('hidden');
-        document.getElementById('userInfo').classList.remove('hidden');
-        document.getElementById('appInterface').classList.remove('hidden');
-        document.getElementById('displayName').innerText = user.displayName;
-        document.getElementById('geminiKey').value = localStorage.getItem('gemini_key') || '';
+        .glass {
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass-card:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .input-field {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #f8fafc;
+        }
+        .input-field:focus {
+            border-color: #3b82f6;
+            outline: none;
+            background: rgba(0, 0, 0, 0.4);
+        }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+    </style>
+</head>
+<body class="min-h-screen text-slate-200 antialiased">
+    <div class="max-w-6xl mx-auto p-6 md:p-12 space-y-12">
         
-        const docSnap = await getDoc(doc(db, "profiles", user.uid));
-        if (docSnap.exists()) {
-            document.getElementById('syncStatus').innerText = "Cloud Profile: " + docSnap.data().userName;
-            document.getElementById('syncStatus').className = "text-[10px] bg-green-100 text-green-700 p-1 px-2 rounded font-bold uppercase";
-        }
-    } else {
-        document.getElementById('appInterface').classList.add('hidden');
-        document.getElementById('loginBtn').classList.remove('hidden');
-        document.getElementById('userInfo').classList.add('hidden');
-    }
-});
+        <header class="flex justify-between items-center">
+            <h1 class="text-2xl font-bold tracking-tight text-white">RESUME<span class="text-blue-500">PARSER</span></h1>
+            <div id="authArea">
+                <button id="loginBtn" class="glass px-8 py-2.5 rounded-full text-sm font-medium hover:bg-white/5 transition border border-white/10">Sign In</button>
+                <div id="userInfo" class="hidden flex items-center gap-6">
+                    <span id="displayName" class="text-sm font-medium text-slate-400"></span>
+                    <button id="logoutBtn" class="text-xs text-slate-500 hover:text-red-400 transition uppercase tracking-widest font-bold">Logout</button>
+                </div>
+            </div>
+        </header>
 
-document.getElementById('loginBtn').onclick = () => signInWithPopup(auth, provider);
-document.getElementById('logoutBtn').onclick = () => signOut(auth);
-
-// --- 4. SYNC ACTION (Gemini 3.1 Flash-Lite) ---
-document.getElementById('syncBtn').onclick = async () => {
-    const key = document.getElementById('geminiKey').value;
-    if (!key) return alert("Enter Gemini Key!");
-    localStorage.setItem('gemini_key', key);
-
-    const btn = document.getElementById('syncBtn');
-    btn.innerText = "Processing...";
-    btn.disabled = true;
-
-    try {
-        let combinedText = document.getElementById('linkedinText').value + "\n";
-        const files = document.getElementById('resumeFiles').files;
-        for (const file of files) combinedText += await extractTextFromFile(file) + "\n";
-
-        const genAI = new GoogleGenerativeAI(key);
-        const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
-        const result = await model.generateContent(`Extract only the full name from this text: ${combinedText.substring(0, 2000)}`);
-        const name = result.response.text().trim();
-
-        await setDoc(doc(db, "profiles", currentUser.uid), {
-            userName: name,
-            profileText: combinedText,
-            updatedAt: Date.now()
-        });
-
-        alert("Profile context processed and saved to Cloud!");
-        location.reload();
-    } catch (err) { alert("Sync Error: " + err.message); }
-    finally { btn.disabled = false; btn.innerText = "Process & Save to Cloud"; }
-};
-
-// --- 5. ANALYZE ACTION (Gemini 3.1 Flash-Lite - HONEST PREPROMPT) ---
-document.getElementById('analyzeBtn').onclick = async () => {
-    const key = document.getElementById('geminiKey').value;
-    const job = document.getElementById('jobDesc').value;
-    if (!job) return alert("Paste Job Description or URL!");
-
-    const btn = document.getElementById('analyzeBtn');
-    btn.innerText = "Analyzing Fit...";
-    btn.disabled = true;
-
-    try {
-        const docSnap = await getDoc(doc(db, "profiles", currentUser.uid));
-        if (!docSnap.exists()) throw new Error("No profile found. Please Sync first.");
-        const profile = docSnap.data();
-
-        const genAI = new GoogleGenerativeAI(key);
-        const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
-
-        const prompt = `
-            Act as a brutally honest, discriminatively critical Technical Recruiter. 
-            Do NOT sugarcoat. Do NOT butter up the candidate. 
-            If they are a bad fit, say it clearly. Identify every weakness, missing skill, and red flag.
+        <main id="appInterface" class="hidden space-y-10">
             
-            CANDIDATE PROFILE:
-            ${profile.profileText}
-            
-            JOB DESCRIPTION/URL:
-            ${job}
-            
-            PROVIDE A BLUNT REPORT:
-            1. Match Score: (0-100%) - Be stingy.
-            2. Harsh Reality: (Why the candidate might fail or be rejected)
-            3. Critical Gaps: (List exactly what is missing)
-            4. Verdict: (One sentence of unvarnished advice)
-            
-            Constraint: Use plain text only. No markdown symbols like * or #.
-        `;
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <section class="glass-card p-8 rounded-3xl space-y-6">
+                    <div>
+                        <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-[0.2em] mb-4">Configuration</h2>
+                        <input type="password" id="geminiKey" class="input-field w-full p-3.5 rounded-xl text-xs" placeholder="API Key">
+                    </div>
+                    <div class="pt-4 border-t border-white/5">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-[0.2em]">Status</h2>
+                            <span id="syncStatus" class="text-[9px] text-slate-500 uppercase font-bold">Disconnected</span>
+                        </div>
+                        <button id="syncBtn" class="w-full bg-white text-black py-3.5 rounded-xl font-bold text-xs hover:bg-slate-200 transition uppercase tracking-wider">Synchronize Profile</button>
+                    </div>
+                </section>
 
-        const result = await model.generateContent(prompt);
-        document.getElementById('analysisReport').innerText = result.response.text();
-        document.getElementById('analysisArea').classList.remove('hidden');
-        document.getElementById('analysisArea').scrollIntoView({ behavior: 'smooth' });
-    } catch (err) { alert("Analysis Error: " + err.message); }
-    finally { btn.disabled = false; btn.innerText = "Analyze Suitability (Blunt)"; }
-};
+                <section class="glass-card p-8 rounded-3xl lg:col-span-2">
+                    <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-[0.2em] mb-6">Profile Context</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="relative group h-32">
+                            <input type="file" id="resumeFiles" multiple accept=".pdf,.docx" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                            <div class="input-field h-full rounded-2xl flex flex-col items-center justify-center text-center group-hover:border-blue-500/50 transition border-dashed">
+                                <span class="text-xs font-semibold text-slate-300">Upload Documents</span>
+                                <span class="text-[10px] text-slate-500 mt-1">PDF or DOCX</span>
+                            </div>
+                        </div>
+                        <textarea id="linkedinText" class="input-field w-full p-4 rounded-2xl text-xs h-32 resize-none" placeholder="Professional Summary / LinkedIn Data"></textarea>
+                    </div>
+                </section>
+            </div>
 
-// --- 6. TAILOR ACTION (Gemini 3.1 Flash-Lite) ---
-document.getElementById('tailorBtn').onclick = async () => {
-    const key = document.getElementById('geminiKey').value;
-    const job = document.getElementById('jobDesc').value;
-    if (!job) return alert("Paste Job Description first!");
+            <section class="glass-card p-10 rounded-[2.5rem]">
+                <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-[0.2em] mb-8 text-center">Target Job Specification</h2>
+                <textarea id="jobDesc" rows="5" class="input-field w-full p-5 rounded-2xl text-sm mb-8 resize-none" placeholder="Paste Job Description or URL"></textarea>
+                <div class="flex flex-col sm:flex-row gap-6">
+                    <button id="analyzeBtn" class="flex-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 py-4 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-blue-500/20 transition">Analyze Fit</button>
+                    <button id="tailorBtn" class="flex-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 py-4 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-emerald-500/20 transition">Tailor Resume</button>
+                </div>
+            </section>
 
-    const btn = document.getElementById('tailorBtn');
-    btn.innerText = "AI is Writing...";
-    btn.disabled = true;
+            <div id="outputArea" class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                <div id="analysisArea" class="hidden glass-card p-10 rounded-[2.5rem]">
+                    <h3 class="text-white font-bold mb-6 flex items-center gap-3 text-sm tracking-tight">
+                        <span class="w-1.5 h-1.5 bg-blue-500 rounded-full"></span> Suitability Report
+                    </h3>
+                    <div id="analysisReport" class="text-sm text-slate-400 whitespace-pre-wrap leading-relaxed font-medium"></div>
+                </div>
 
-    try {
-        const docSnap = await getDoc(doc(db, "profiles", currentUser.uid));
-        if (!docSnap.exists()) throw new Error("No profile found. Please Sync first.");
-        const profile = docSnap.data();
+                <div id="resumeView" class="hidden glass-card p-10 rounded-[2.5rem]">
+                    <div class="flex justify-between items-center mb-8">
+                        <h3 class="text-white font-bold text-sm tracking-tight">Tailored Document</h3>
+                        <button id="downloadBtn" class="bg-white text-black px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter hover:bg-slate-200 transition">Download .docx</button>
+                    </div>
+                    <div id="resumeText" class="font-mono text-[11px] text-slate-400 whitespace-pre-wrap bg-black/40 p-8 rounded-2xl border border-white/5 max-h-[500px] overflow-y-auto"></div>
+                </div>
+            </div>
 
-        const genAI = new GoogleGenerativeAI(key);
-        const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
+            <section class="glass-card p-10 rounded-[2.5rem] max-w-3xl mx-auto">
+                <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
+                    <span class="w-2 h-2 bg-blue-500 rounded-full"></span> Consultation Chat
+                </h2>
+                <div id="chatBox" class="h-80 overflow-y-auto space-y-6 mb-8 pr-4">
+                    <div class="text-[11px] text-slate-500 font-medium">
+                        System ready. Provide queries regarding your profile or the target role for objective feedback.
+                    </div>
+                </div>
+                <div class="relative">
+                    <input type="text" id="chatInput" class="input-field w-full p-5 pr-28 rounded-2xl text-sm" placeholder="Message assistant...">
+                    <button id="chatSendBtn" class="absolute right-2.5 top-2.5 bottom-2.5 bg-blue-600 text-white px-8 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-blue-500 transition">Send</button>
+                </div>
+            </section>
 
-        const prompt = `Rewrite a professional resume for ${profile.userName} tailored to this job: ${job}. 
-        Use this background context: ${profile.profileText}. 
-        Be realistic. Do not invent skills the candidate doesn't have.
-        CONSTRAINT: Output ONLY plain text. Do NOT use markdown symbols like asterisks (*) or hashtags (#).`;
+        </main>
+    </div>
 
-        const result = await model.generateContent(prompt);
-        document.getElementById('resumeText').innerText = result.response.text();
-        document.getElementById('resumeView').classList.remove('hidden');
-        document.getElementById('resumeView').scrollIntoView({ behavior: 'smooth' });
-    } catch (err) { alert("Tailor Error: " + err.message); }
-    finally { btn.disabled = false; btn.innerText = "Tailor Resume"; }
-};
-
-// --- 7. CHATBOT ACTION (Gemini 3.1 Flash-Lite - HONEST PREPROMPT) ---
-document.getElementById('chatSendBtn').onclick = async () => {
-    const key = document.getElementById('geminiKey').value;
-    const userInput = document.getElementById('chatInput').value;
-    const jobDesc = document.getElementById('jobDesc').value;
-    if (!userInput || !key) return;
-
-    appendChatMessage('user', userInput);
-    document.getElementById('chatInput').value = "";
-
-    try {
-        const docSnap = await getDoc(doc(db, "profiles", currentUser.uid));
-        const profile = docSnap.exists() ? docSnap.data() : { profileText: "No profile uploaded yet." };
-        const tailoredResume = document.getElementById('resumeText').innerText;
-
-        const genAI = new GoogleGenerativeAI(key);
-        const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
-
-        const systemContext = `
-            You are a discriminatively honest Career Coach. 
-            Your goal is to give direct, unvarnished, and blunt feedback. 
-            Do NOT sugarcoat. Do NOT butter up the user. 
-            If their questions are unrealistic or their profile is weak, tell them directly.
-            
-            DATA:
-            USER PROFILE: ${profile.profileText}
-            TARGET JOB: ${jobDesc || "Not provided yet"}
-            TAILORED RESUME: ${tailoredResume || "Not generated yet"}
-            
-            Answer the user's question with absolute honesty. No markdown symbols like * or #.
-        `;
-
-        const result = await model.generateContent(`${systemContext}\n\nUSER QUESTION: ${userInput}`);
-        appendChatMessage('ai', result.response.text());
-    } catch (err) {
-        appendChatMessage('ai', "Error: " + err.message);
-    }
-};
-
-// --- 8. DOWNLOAD DOCX ---
-document.getElementById('downloadBtn').onclick = async () => {
-    const text = document.getElementById('resumeText').innerText;
-    const docObj = new docx.Document({
-        sections: [{
-            children: text.split('\n').map(line => new docx.Paragraph({
-                children: [new docx.TextRun(line)]
-            }))
-        }]
-    });
-    const blob = await docx.Packer.toBlob(docObj);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = "Tailored_Resume.docx"; a.click();
-};
+    <script type="module" src="app.js"></script>
+</body>
+</html>
