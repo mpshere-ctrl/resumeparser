@@ -11,128 +11,166 @@
     <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js"></script>
     
     <style>
+        :root {
+            --bg-gradient: radial-gradient(circle at top left, #0f172a, #020617);
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --input-bg: rgba(0, 0, 0, 0.3);
+        }
+
+        .light-mode {
+            --bg-gradient: radial-gradient(circle at top left, #f8fafc, #e2e8f0);
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --glass-border: rgba(15, 23, 42, 0.08);
+            --text-main: #0f172a;
+            --input-bg: rgba(255, 255, 255, 0.5);
+        }
+
         body {
             font-family: 'Inter', sans-serif;
-            background: radial-gradient(circle at top left, #0f172a, #020617);
+            background: var(--bg-gradient);
             background-attachment: fixed;
+            color: var(--text-main);
+            transition: background 0.5s ease, color 0.5s ease;
         }
-        .glass {
-            background: rgba(255, 255, 255, 0.02);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
+
         .glass-card {
-            background: rgba(255, 255, 255, 0.03);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
         }
-        .glass-card:hover {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
+
         .input-field {
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: #f8fafc;
+            background: var(--input-bg);
+            border: 1px solid var(--glass-border);
+            color: var(--text-main);
         }
-        .input-field:focus {
-            border-color: #3b82f6;
-            outline: none;
-            background: rgba(0, 0, 0, 0.4);
+
+        .tab-btn {
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+            opacity: 0.5;
         }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+
+        .tab-btn.active {
+            opacity: 1;
+            border-bottom-color: #3b82f6;
+            color: #3b82f6;
+        }
+
+        .theme-icon { display: none; }
+        .light-mode .sun-icon { display: block; }
+        .dark-mode .moon-icon { display: block; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.4s ease; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body class="min-h-screen text-slate-200 antialiased">
-    <div class="max-w-6xl mx-auto p-6 md:p-12 space-y-12">
+<body class="min-h-screen antialiased dark-mode">
+    <div class="max-w-5xl mx-auto p-6 md:p-12 space-y-8">
         
         <header class="flex justify-between items-center">
-            <h1 class="text-2xl font-bold tracking-tight text-white">RESUME<span class="text-blue-500">PARSER</span></h1>
-            <div id="authArea">
-                <button id="loginBtn" class="glass px-8 py-2.5 rounded-full text-sm font-medium hover:bg-white/5 transition border border-white/10">Sign In</button>
-                <div id="userInfo" class="hidden flex items-center gap-6">
-                    <span id="displayName" class="text-sm font-medium text-slate-400"></span>
-                    <button id="logoutBtn" class="text-xs text-slate-500 hover:text-red-400 transition uppercase tracking-widest font-bold">Logout</button>
+            <h1 class="text-2xl font-bold tracking-tight">RESUME<span class="text-blue-500">PARSER</span></h1>
+            
+            <div class="flex items-center gap-4">
+                <button id="themeToggle" class="glass-card p-2.5 rounded-full hover:bg-white/10 transition">
+                    <svg class="w-5 h-5 moon-icon theme-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                    <svg class="w-5 h-5 sun-icon theme-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1M4 9h-1m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                </button>
+
+                <div id="authArea">
+                    <button id="loginBtn" class="glass-card px-8 py-2 rounded-full text-sm font-medium">Sign In</button>
+                    <div id="userInfo" class="hidden flex items-center gap-6">
+                        <span id="displayName" class="text-sm font-medium opacity-70"></span>
+                        <button id="logoutBtn" class="text-xs text-red-400 font-bold uppercase">Logout</button>
+                    </div>
                 </div>
             </div>
         </header>
 
-        <main id="appInterface" class="hidden space-y-10">
+        <nav id="tabNav" class="hidden flex gap-8 border-b border-white/10 pb-2">
+            <button class="tab-btn active text-xs font-bold uppercase tracking-widest" data-tab="profile">1. Profile</button>
+            <button class="tab-btn text-xs font-bold uppercase tracking-widest" data-tab="analysis">2. Analysis</button>
+            <button class="tab-btn text-xs font-bold uppercase tracking-widest" data-tab="tailor">3. Tailor</button>
+            <button class="tab-btn text-xs font-bold uppercase tracking-widest" data-tab="coach">4. Coach</button>
+        </nav>
+
+        <main id="appInterface" class="hidden">
             
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <section class="glass-card p-8 rounded-3xl space-y-6">
-                    <div>
-                        <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-[0.2em] mb-4">Configuration</h2>
-                        <input type="password" id="geminiKey" class="input-field w-full p-3.5 rounded-xl text-xs" placeholder="API Key">
-                    </div>
-                    <div class="pt-4 border-t border-white/5">
-                        <div class="flex justify-between items-center mb-4">
-                            <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-[0.2em]">Status</h2>
-                            <span id="syncStatus" class="text-[9px] text-slate-500 uppercase font-bold">Disconnected</span>
+            <!-- Tab 1: Profile -->
+            <div id="profile" class="tab-content active space-y-8">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <section class="glass-card p-8 rounded-3xl">
+                        <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-4">Configuration</h2>
+                        <input type="password" id="geminiKey" class="input-field w-full p-3 rounded-xl text-xs" placeholder="Gemini API Key">
+                    </section>
+                    <section class="glass-card p-8 rounded-3xl md:col-span-2 space-y-6">
+                        <div class="flex justify-between items-center">
+                            <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Context Ingestion</h2>
+                            <span id="syncStatus" class="text-[9px] opacity-50 uppercase font-bold tracking-tighter">Disconnected</span>
                         </div>
-                        <button id="syncBtn" class="w-full bg-white text-black py-3.5 rounded-xl font-bold text-xs hover:bg-slate-200 transition uppercase tracking-wider">Synchronize Profile</button>
-                    </div>
-                </section>
-
-                <section class="glass-card p-8 rounded-3xl lg:col-span-2">
-                    <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-[0.2em] mb-6">Profile Context</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="relative group h-32">
-                            <input type="file" id="resumeFiles" multiple accept=".pdf,.docx" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
-                            <div class="input-field h-full rounded-2xl flex flex-col items-center justify-center text-center group-hover:border-blue-500/50 transition border-dashed">
-                                <span class="text-xs font-semibold text-slate-300">Upload Documents</span>
-                                <span class="text-[10px] text-slate-500 mt-1">PDF or DOCX</span>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="relative group">
+                                <input type="file" id="resumeFiles" multiple accept=".pdf,.docx" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                                <div class="input-field p-4 rounded-xl text-center text-xs opacity-60 group-hover:border-blue-500 transition border-dashed">
+                                    Upload Resumes (PDF/DOCX)
+                                </div>
                             </div>
+                            <textarea id="linkedinText" class="input-field w-full p-3 rounded-xl text-xs h-16 resize-none" placeholder="LinkedIn Bio / Summary"></textarea>
                         </div>
-                        <textarea id="linkedinText" class="input-field w-full p-4 rounded-2xl text-xs h-32 resize-none" placeholder="Professional Summary / LinkedIn Data"></textarea>
+                        <button id="syncBtn" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-blue-500 transition">Synchronize Profile</button>
+                    </section>
+                </div>
+            </div>
+
+            <!-- Tab 2: Analysis -->
+            <div id="analysis" class="tab-content space-y-8">
+                <section class="glass-card p-10 rounded-[2.5rem] space-y-6">
+                    <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-widest text-center">Target Job Specification</h2>
+                    <textarea id="jobDesc" rows="6" class="input-field w-full p-5 rounded-2xl text-sm resize-none" placeholder="Paste Job Description or URL"></textarea>
+                    <button id="analyzeBtn" class="w-full bg-amber-500/10 text-amber-500 border border-amber-500/20 py-4 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-amber-500/20 transition">Generate Suitability Report</button>
+                    <div id="analysisArea" class="hidden pt-6 border-t border-white/5">
+                        <h3 class="font-bold mb-4 text-xs uppercase opacity-50">Honest Assessment</h3>
+                        <div id="analysisReport" class="text-sm opacity-80 whitespace-pre-wrap leading-relaxed"></div>
                     </div>
                 </section>
             </div>
 
-            <section class="glass-card p-10 rounded-[2.5rem]">
-                <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-[0.2em] mb-8 text-center">Target Job Specification</h2>
-                <textarea id="jobDesc" rows="5" class="input-field w-full p-5 rounded-2xl text-sm mb-8 resize-none" placeholder="Paste Job Description or URL"></textarea>
-                <div class="flex flex-col sm:flex-row gap-6">
-                    <button id="analyzeBtn" class="flex-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 py-4 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-blue-500/20 transition">Analyze Fit</button>
-                    <button id="tailorBtn" class="flex-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 py-4 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-emerald-500/20 transition">Tailor Resume</button>
-                </div>
-            </section>
-
-            <div id="outputArea" class="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                <div id="analysisArea" class="hidden glass-card p-10 rounded-[2.5rem]">
-                    <h3 class="text-white font-bold mb-6 flex items-center gap-3 text-sm tracking-tight">
-                        <span class="w-1.5 h-1.5 bg-blue-500 rounded-full"></span> Suitability Report
-                    </h3>
-                    <div id="analysisReport" class="text-sm text-slate-400 whitespace-pre-wrap leading-relaxed font-medium"></div>
-                </div>
-
-                <div id="resumeView" class="hidden glass-card p-10 rounded-[2.5rem]">
-                    <div class="flex justify-between items-center mb-8">
-                        <h3 class="text-white font-bold text-sm tracking-tight">Tailored Document</h3>
-                        <button id="downloadBtn" class="bg-white text-black px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter hover:bg-slate-200 transition">Download .docx</button>
+            <!-- Tab 3: Tailor -->
+            <div id="tailor" class="tab-content space-y-8">
+                <section class="glass-card p-10 rounded-[2.5rem] space-y-6 text-center">
+                    <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-widest">ATS-Optimized Document Generation</h2>
+                    <p class="text-xs opacity-50 max-w-md mx-auto">Gemini will restructure your profile into a single-column, keyword-optimized format compatible with major ATS platforms.</p>
+                    <button id="tailorBtn" class="w-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 py-4 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-emerald-500/20 transition">Generate Tailored Resume</button>
+                    
+                    <div id="resumeView" class="hidden text-left space-y-6">
+                        <div class="flex justify-between items-center pt-6 border-t border-white/5">
+                            <h3 class="font-bold text-xs uppercase opacity-50">Document Preview</h3>
+                            <button id="downloadBtn" class="bg-blue-600 text-white px-8 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition">Download .docx</button>
+                        </div>
+                        <div id="resumeText" class="font-mono text-[10px] opacity-40 whitespace-pre-wrap bg-black/20 p-8 rounded-2xl border border-white/5 max-h-[400px] overflow-y-auto"></div>
                     </div>
-                    <div id="resumeText" class="font-mono text-[11px] text-slate-400 whitespace-pre-wrap bg-black/40 p-8 rounded-2xl border border-white/5 max-h-[500px] overflow-y-auto"></div>
-                </div>
+                </section>
             </div>
 
-            <section class="glass-card p-10 rounded-[2.5rem] max-w-3xl mx-auto">
-                <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
-                    <span class="w-2 h-2 bg-blue-500 rounded-full"></span> Consultation Chat
-                </h2>
-                <div id="chatBox" class="h-80 overflow-y-auto space-y-6 mb-8 pr-4">
-                    <div class="text-[11px] text-slate-500 font-medium">
-                        System ready. Provide queries regarding your profile or the target role for objective feedback.
+            <!-- Tab 4: Coach -->
+            <div id="coach" class="tab-content space-y-8">
+                <section class="glass-card p-10 rounded-[2.5rem] max-w-3xl mx-auto">
+                    <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-8 flex items-center gap-3">
+                        <span class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span> Consultation Chat
+                    </h2>
+                    <div id="chatBox" class="h-80 overflow-y-auto space-y-6 mb-8 pr-4">
+                        <div class="text-[11px] opacity-40 font-medium italic">Ask about interview prep, salary negotiation, or specific role gaps...</div>
                     </div>
-                </div>
-                <div class="relative">
-                    <input type="text" id="chatInput" class="input-field w-full p-5 pr-28 rounded-2xl text-sm" placeholder="Message assistant...">
-                    <button id="chatSendBtn" class="absolute right-2.5 top-2.5 bottom-2.5 bg-blue-600 text-white px-8 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-blue-500 transition">Send</button>
-                </div>
-            </section>
+                    <div class="relative">
+                        <input type="text" id="chatInput" class="input-field w-full p-5 pr-28 rounded-2xl text-sm" placeholder="Message coach...">
+                        <button id="chatSendBtn" class="absolute right-2.5 top-2.5 bottom-2.5 bg-blue-600 text-white px-8 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-blue-500 transition">Send</button>
+                    </div>
+                </section>
+            </div>
 
         </main>
     </div>
