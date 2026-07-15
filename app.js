@@ -21,6 +21,33 @@ let lastTailoredJson = null;
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
+// --- UI / TABS / THEME ---
+const themeToggle = document.getElementById('themeToggle');
+const body = document.body;
+const tabBtns = document.querySelectorAll('.tab-btn');
+const tabContents = document.querySelectorAll('.tab-content');
+
+tabBtns.forEach(btn => {
+    btn.onclick = () => {
+        tabBtns.forEach(b => b.classList.remove('active'));
+        tabContents.forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab).classList.add('active');
+    };
+});
+
+themeToggle.onclick = () => {
+    const isDark = body.classList.contains('dark-mode');
+    body.classList.toggle('dark-mode', !isDark);
+    body.classList.toggle('light-mode', isDark);
+    localStorage.setItem('theme', isDark ? 'light-mode' : 'dark-mode');
+};
+
+if (localStorage.getItem('theme') === 'light-mode') {
+    body.classList.replace('dark-mode', 'light-mode');
+}
+
+// --- CORE LOGIC ---
 async function extractTextFromFile(file) {
     const arrayBuffer = await file.arrayBuffer();
     if (file.name.endsWith('.docx')) {
@@ -45,8 +72,8 @@ function appendChatMessage(role, text) {
     msgDiv.className = role === 'user' ? 'flex justify-end' : 'flex justify-start';
     const inner = document.createElement('div');
     inner.className = role === 'user' 
-        ? 'bg-blue-600 text-white p-5 rounded-2xl rounded-tr-none text-xs max-w-[85%] shadow-xl font-medium' 
-        : 'bg-white/5 border border-white/5 text-slate-300 p-5 rounded-2xl rounded-tl-none text-xs max-w-[85%] font-medium';
+        ? 'bg-blue-600 text-white p-5 rounded-2xl rounded-tr-none text-xs max-w-[85%] font-medium' 
+        : 'bg-white/10 border border-white/5 text-slate-300 p-5 rounded-2xl rounded-tl-none text-xs max-w-[85%] font-medium';
     inner.innerText = text;
     msgDiv.appendChild(inner);
     chatBox.appendChild(msgDiv);
@@ -59,15 +86,17 @@ onAuthStateChanged(auth, async (user) => {
         document.getElementById('loginBtn').classList.add('hidden');
         document.getElementById('userInfo').classList.remove('hidden');
         document.getElementById('appInterface').classList.remove('hidden');
+        document.getElementById('tabNav').classList.remove('hidden');
         document.getElementById('displayName').innerText = user.displayName;
         document.getElementById('geminiKey').value = localStorage.getItem('gemini_key') || '';
         const docSnap = await getDoc(doc(db, "profiles", user.uid));
         if (docSnap.exists()) {
             document.getElementById('syncStatus').innerText = docSnap.data().userName;
-            document.getElementById('syncStatus').className = "text-[9px] text-blue-400 uppercase font-black tracking-widest";
+            document.getElementById('syncStatus').className = "text-[9px] text-blue-500 uppercase font-black tracking-widest";
         }
     } else {
         document.getElementById('appInterface').classList.add('hidden');
+        document.getElementById('tabNav').classList.add('hidden');
         document.getElementById('loginBtn').classList.remove('hidden');
         document.getElementById('userInfo').classList.add('hidden');
     }
@@ -109,20 +138,19 @@ document.getElementById('analyzeBtn').onclick = async () => {
         const profile = docSnap.data();
         const genAI = new GoogleGenerativeAI(key);
         const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
-        const prompt = `Act as a discriminatively honest Technical Recruiter. Assessment: ${profile.profileText} vs Job: ${job}. Plain text only.`;
+        const prompt = `Act as a discriminatively honest Technical Recruiter. Assessment: ${profile.profileText} vs Job: ${job}. Plain text only. No sugarcoating.`;
         const result = await model.generateContent(prompt);
         document.getElementById('analysisReport').innerText = result.response.text();
         document.getElementById('analysisArea').classList.remove('hidden');
-        document.getElementById('analysisArea').scrollIntoView({ behavior: 'smooth' });
     } catch (err) { console.error(err); }
-    finally { btn.disabled = false; btn.innerText = "Analyze Fit"; }
+    finally { btn.disabled = false; btn.innerText = "Generate Suitability Report"; }
 };
 
 document.getElementById('tailorBtn').onclick = async () => {
     const key = document.getElementById('geminiKey').value;
     const job = document.getElementById('jobDesc').value;
     const btn = document.getElementById('tailorBtn');
-    btn.innerText = "Generating...";
+    btn.innerText = "Optimizing for ATS...";
     btn.disabled = true;
     try {
         const docSnap = await getDoc(doc(db, "profiles", currentUser.uid));
@@ -133,22 +161,21 @@ document.getElementById('tailorBtn').onclick = async () => {
         const prompt = `Rewrite a professional resume for ${profile.userName} tailored to: ${job}. 
         Use context: ${profile.profileText}. 
         Output MUST be a valid JSON object with these keys: 
-        "name", "contact" (string), "summary", 
+        "name", "contact", "summary", 
         "experience" (array of {title, company, date, bullets[]}), 
         "education" (array of {degree, school, date}), 
         "skills" (array of strings). 
+        IMPORTANT: Use keywords from the job description in the experience bullets. 
         Do not include markdown code blocks.`;
 
         const result = await model.generateContent(prompt);
         let rawJson = result.response.text().replace(/```json|```/g, "").trim();
         lastTailoredJson = JSON.parse(rawJson);
 
-        // Display a preview
         document.getElementById('resumeText').innerText = JSON.stringify(lastTailoredJson, null, 2);
         document.getElementById('resumeView').classList.remove('hidden');
-        document.getElementById('resumeView').scrollIntoView({ behavior: 'smooth' });
-    } catch (err) { console.error(err); alert("Failed to generate structured data. Try again."); }
-    finally { btn.disabled = false; btn.innerText = "Tailor Resume"; }
+    } catch (err) { console.error(err); alert("Failed to generate structured data."); }
+    finally { btn.disabled = false; btn.innerText = "Generate Tailored Resume"; }
 };
 
 document.getElementById('chatSendBtn').onclick = async () => {
@@ -163,73 +190,73 @@ document.getElementById('chatSendBtn').onclick = async () => {
         const profile = docSnap.data();
         const genAI = new GoogleGenerativeAI(key);
         const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
-        const systemContext = `Honest Career Consultant. Profile: ${profile.profileText} Job: ${jobDesc}. No markdown.`;
+        const systemContext = `Discriminatively honest Career Coach. Do not sugarcoat. Profile: ${profile.profileText} Job: ${jobDesc}. No markdown.`;
         const result = await model.generateContent(`${systemContext}\n\nUser Query: ${userInput}`);
         appendChatMessage('ai', result.response.text());
     } catch (err) { appendChatMessage('ai', "Error processing query."); }
 };
 
-// --- HIGH FIDELITY DOCX GENERATOR ---
+// --- ATS-FRIENDLY DOCX ENGINE ---
 document.getElementById('downloadBtn').onclick = async () => {
     if (!lastTailoredJson) return;
-
     const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } = docx;
 
     const children = [
-        // Header
         new Paragraph({
             alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: lastTailoredJson.name, bold: true, size: 32 })],
+            children: [new TextRun({ text: lastTailoredJson.name.toUpperCase(), bold: true, size: 28, font: "Arial" })],
         }),
         new Paragraph({
             alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: lastTailoredJson.contact, size: 20 })],
-            spacing: { after: 400 },
+            children: [new TextRun({ text: lastTailoredJson.contact, size: 18, font: "Arial" })],
+            spacing: { after: 300 },
         }),
+        
+        // Sections use standard titles for ATS
+        new Paragraph({ text: "SUMMARY", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } } }),
+        new Paragraph({ children: [new TextRun({ text: lastTailoredJson.summary, font: "Arial", size: 20 })], spacing: { before: 150, after: 300 } }),
 
-        // Summary
-        new Paragraph({ text: "PROFESSIONAL SUMMARY", heading: HeadingLevel.HEADING_2, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } } }),
-        new Paragraph({ children: [new TextRun(lastTailoredJson.summary)], spacing: { before: 200, after: 400 } }),
-
-        // Experience
-        new Paragraph({ text: "PROFESSIONAL EXPERIENCE", heading: HeadingLevel.HEADING_2, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } } }),
+        new Paragraph({ text: "EXPERIENCE", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } } }),
     ];
 
     lastTailoredJson.experience.forEach(exp => {
         children.push(new Paragraph({
             spacing: { before: 200 },
             children: [
-                new TextRun({ text: exp.title, bold: true }),
-                new TextRun({ text: ` | ${exp.company}`, italic: true }),
-                new TextRun({ text: `\t${exp.date}`, bold: true }),
+                new TextRun({ text: exp.title, bold: true, font: "Arial", size: 20 }),
+                new TextRun({ text: `\t${exp.date}`, bold: true, font: "Arial", size: 20 }),
             ],
         }));
+        children.push(new Paragraph({
+            children: [new TextRun({ text: exp.company, italic: true, font: "Arial", size: 20 })],
+            spacing: { after: 100 }
+        }));
         exp.bullets.forEach(b => {
-            children.push(new Paragraph({ text: b, bullet: { level: 0 }, spacing: { before: 100 } }));
+            children.push(new Paragraph({ text: b, bullet: { level: 0 }, spacing: { before: 50 }, font: "Arial" }));
         });
     });
 
-    // Education
-    children.push(new Paragraph({ text: "EDUCATION", heading: HeadingLevel.HEADING_2, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } }, spacing: { before: 400 } }));
+    children.push(new Paragraph({ text: "EDUCATION", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } }, spacing: { before: 300 } }));
     lastTailoredJson.education.forEach(edu => {
         children.push(new Paragraph({
-            spacing: { before: 200 },
+            spacing: { before: 150 },
             children: [
-                new TextRun({ text: edu.degree, bold: true }),
-                new TextRun({ text: ` | ${edu.school}` }),
-                new TextRun({ text: `\t${edu.date}` }),
+                new TextRun({ text: edu.degree, bold: true, font: "Arial", size: 20 }),
+                new TextRun({ text: `\t${edu.date}`, bold: true, font: "Arial", size: 20 }),
             ],
         }));
+        children.push(new Paragraph({ children: [new TextRun({ text: edu.school, font: "Arial", size: 20 })] }));
     });
 
-    // Skills
-    children.push(new Paragraph({ text: "SKILLS", heading: HeadingLevel.HEADING_2, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } }, spacing: { before: 400 } }));
-    children.push(new Paragraph({ text: lastTailoredJson.skills.join(" • "), spacing: { before: 200 } }));
+    children.push(new Paragraph({ text: "SKILLS", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } }, spacing: { before: 300 } }));
+    children.push(new Paragraph({ text: lastTailoredJson.skills.join(", "), spacing: { before: 150 }, font: "Arial", size: 20 }));
 
-    const docObj = new Document({
-        sections: [{ properties: {}, children: children }],
+    const docObj = new Document({ 
+        sections: [{ 
+            properties: { page: { margin: { top: 720, bottom: 720, left: 720, right: 720 } } }, 
+            children: children 
+        }] 
     });
-
     const blob = await Packer.toBlob(docObj);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
