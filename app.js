@@ -210,7 +210,7 @@ if (tailorBtn) {
             document.getElementById('resumeText').innerText = JSON.stringify(lastTailoredJson, null, 2);
             document.getElementById('resumeView').classList.remove('hidden');
         } catch (err) { console.error(err); }
-        finally { tailorBtn.disabled = false; tailorBtn.innerText = "Generate Document"; }
+        finally { tailorBtn.disabled = false; tailorBtn.innerText = "Generate ATS Resume"; }
     };
 }
 
@@ -235,13 +235,14 @@ if (chatSendBtn) {
     };
 }
 
+// --- ATS-FRIENDLY DOCX ENGINE ---
 const downloadBtn = document.getElementById('downloadBtn');
 if (downloadBtn) {
     downloadBtn.onclick = async () => {
         if (!lastTailoredJson) return;
-        // FIX: Access docx through standard global variable
-        const docxLib = window.docx;
-        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } = docxLib;
+        
+        // FIX: Access docx directly from the global scope
+        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } = window.docx;
         
         const contactInfo = `${lastTailoredJson.contact.email} | ${lastTailoredJson.contact.phone}\n${lastTailoredJson.contact.address}\n${lastTailoredJson.contact.linkedin}`;
 
