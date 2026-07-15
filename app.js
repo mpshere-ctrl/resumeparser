@@ -1,240 +1,168 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
-
-const firebaseConfig = {
-    apiKey: "AIzaSyBzUhTIuszpODRYti4gS7ks7ewbIxzvVDM",
-    authDomain: "resumeparser-e6d7b.firebaseapp.com",
-    projectId: "resumeparser-e6d7b",
-    storageBucket: "resumeparser-e6d7b.firebasestorage.app",
-    messagingSenderId: "504154767045",
-    appId: "1:504154767045:web:fd4db241e37215f3f57aac"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const provider = new GoogleAuthProvider();
-let currentUser = null;
-let lastTailoredJson = null;
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-const themeToggle = document.getElementById('themeToggle');
-const body = document.body;
-
-if (themeToggle) {
-    themeToggle.onclick = () => {
-        const isDark = body.classList.contains('dark-mode');
-        body.classList.toggle('dark-mode', !isDark);
-        body.classList.toggle('light-mode', isDark);
-        localStorage.setItem('theme', isDark ? 'light-mode' : 'dark-mode');
-    };
-}
-
-if (localStorage.getItem('theme') === 'light-mode') {
-    body.classList.replace('dark-mode', 'light-mode');
-}
-
-const tabBtns = document.querySelectorAll('.tab-btn');
-const tabContents = document.querySelectorAll('.tab-content');
-tabBtns.forEach(btn => {
-    btn.onclick = () => {
-        tabBtns.forEach(b => b.classList.remove('active'));
-        tabContents.forEach(c => c.classList.remove('active'));
-        btn.classList.add('active');
-        const target = document.getElementById(btn.dataset.tab);
-        if (target) target.classList.add('active');
-    };
-});
-
-async function extractTextFromFile(file) {
-    const arrayBuffer = await file.arrayBuffer();
-    if (file.name.endsWith('.docx')) {
-        const result = await mammoth.extractRawText({ arrayBuffer });
-        return result.value;
-    } else if (file.name.endsWith('.pdf')) {
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        let fullText = "";
-        for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const content = await page.getTextContent();
-            fullText += content.items.map(s => s.str).join(" ") + "\n";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResumeParser</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js"></script>
+    
+    <style>
+        :root {
+            --bg-gradient: radial-gradient(circle at top left, #0f172a, #020617);
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --input-bg: rgba(0, 0, 0, 0.3);
         }
-        return fullText;
-    }
-    return "";
-}
 
-function appendChatMessage(role, text) {
-    const chatBox = document.getElementById('chatBox');
-    if (!chatBox) return;
-    const msgDiv = document.createElement('div');
-    msgDiv.className = role === 'user' ? 'flex justify-end' : 'flex justify-start';
-    const inner = document.createElement('div');
-    inner.className = role === 'user' 
-        ? 'bg-blue-600 text-white p-4 rounded-2xl rounded-tr-none text-xs max-w-[85%]' 
-        : 'bg-white/10 border border-white/5 text-slate-300 p-4 rounded-2xl rounded-tl-none text-xs max-w-[85%]';
-    inner.innerText = text;
-    msgDiv.appendChild(inner);
-    chatBox.appendChild(msgDiv);
-    chatBox.scrollTop = chatBox.scrollHeight;
-}
-
-onAuthStateChanged(auth, async (user) => {
-    const loginBtn = document.getElementById('loginBtn');
-    const userInfo = document.getElementById('userInfo');
-    const appInterface = document.getElementById('appInterface');
-    const tabNav = document.getElementById('tabNav');
-    const displayName = document.getElementById('displayName');
-    const syncStatus = document.getElementById('syncStatus');
-
-    if (user) {
-        currentUser = user;
-        if (loginBtn) loginBtn.classList.add('hidden');
-        if (userInfo) userInfo.classList.remove('hidden');
-        if (appInterface) appInterface.classList.remove('hidden');
-        if (tabNav) tabNav.classList.remove('hidden');
-        if (displayName) displayName.innerText = user.displayName;
-        const keyInput = document.getElementById('geminiKey');
-        if (keyInput) keyInput.value = localStorage.getItem('gemini_key') || '';
-        const docSnap = await getDoc(doc(db, "profiles", user.uid));
-        if (docSnap.exists() && syncStatus) {
-            syncStatus.innerText = docSnap.data().userName;
-            syncStatus.className = "text-[9px] text-blue-500 uppercase font-black";
+        .light-mode {
+            --bg-gradient: radial-gradient(circle at top left, #f8fafc, #e2e8f0);
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --glass-border: rgba(15, 23, 42, 0.08);
+            --text-main: #0f172a;
+            --input-bg: rgba(255, 255, 255, 0.5);
         }
-    } else {
-        if (appInterface) appInterface.classList.add('hidden');
-        if (tabNav) tabNav.classList.add('hidden');
-        if (loginBtn) loginBtn.classList.remove('hidden');
-        if (userInfo) userInfo.classList.add('hidden');
-    }
-});
 
-const loginBtn = document.getElementById('loginBtn');
-if (loginBtn) loginBtn.onclick = () => signInWithPopup(auth, provider);
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-gradient);
+            background-attachment: fixed;
+            color: var(--text-main);
+            transition: background 0.5s ease, color 0.5s ease;
+        }
 
-const logoutBtn = document.getElementById('logoutBtn');
-if (logoutBtn) logoutBtn.onclick = () => signOut(auth);
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+        }
 
-const syncBtn = document.getElementById('syncBtn');
-if (syncBtn) {
-    syncBtn.onclick = async () => {
-        const key = document.getElementById('geminiKey').value;
-        if (!key) return;
-        localStorage.setItem('gemini_key', key);
-        syncBtn.innerText = "Processing...";
-        syncBtn.disabled = true;
-        try {
-            let combinedText = document.getElementById('linkedinText').value + "\n";
-            const files = document.getElementById('resumeFiles').files;
-            for (const file of files) combinedText += await extractTextFromFile(file) + "\n";
-            const genAI = new GoogleGenerativeAI(key);
-            const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
-            const result = await model.generateContent(`Extract the full name from the following data. Return only the name: ${combinedText.substring(0, 2000)}`);
-            const name = result.response.text().trim();
-            await setDoc(doc(db, "profiles", currentUser.uid), { userName: name, profileText: combinedText, updatedAt: Date.now() });
-            location.reload();
-        } catch (err) { console.error(err); }
-        finally { syncBtn.disabled = false; syncBtn.innerText = "Synchronize"; }
-    };
-}
+        .input-field {
+            background: var(--input-bg);
+            border: 1px solid var(--glass-border);
+            color: var(--text-main);
+        }
 
-const analyzeBtn = document.getElementById('analyzeBtn');
-if (analyzeBtn) {
-    analyzeBtn.onclick = async () => {
-        const key = document.getElementById('geminiKey').value;
-        const job = document.getElementById('jobDesc').value;
-        if (!job) return;
-        analyzeBtn.innerText = "Analyzing...";
-        analyzeBtn.disabled = true;
-        try {
-            const docSnap = await getDoc(doc(db, "profiles", currentUser.uid));
-            const profile = docSnap.data();
-            const genAI = new GoogleGenerativeAI(key);
-            const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
-            const prompt = `Act as a discriminatively honest Technical Recruiter. Assessment: ${profile.profileText} vs Job: ${job}. Plain text only. No sugarcoating.`;
-            const result = await model.generateContent(prompt);
-            document.getElementById('analysisReport').innerText = result.response.text();
-            document.getElementById('analysisArea').classList.remove('hidden');
-        } catch (err) { console.error(err); }
-        finally { analyzeBtn.disabled = false; analyzeBtn.innerText = "Analyze Suitability"; }
-    };
-}
+        .tab-btn {
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+            opacity: 0.5;
+        }
 
-const tailorBtn = document.getElementById('tailorBtn');
-if (tailorBtn) {
-    tailorBtn.onclick = async () => {
-        const key = document.getElementById('geminiKey').value;
-        const job = document.getElementById('jobDesc').value;
-        tailorBtn.innerText = "Generating...";
-        tailorBtn.disabled = true;
-        try {
-            const docSnap = await getDoc(doc(db, "profiles", currentUser.uid));
-            const profile = docSnap.data();
-            const genAI = new GoogleGenerativeAI(key);
-            const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
-            const prompt = `Rewrite a professional resume for ${profile.userName} tailored to: ${job}. Use context: ${profile.profileText}. Output MUST be a valid JSON object with keys: "name", "contact", "summary", "experience" (array of {title, company, date, bullets[]}), "education" (array of {degree, school, date}), "skills" (array of strings). Do not include markdown code blocks.`;
-            const result = await model.generateContent(prompt);
-            let rawJson = result.response.text().replace(/```json|```/g, "").trim();
-            lastTailoredJson = JSON.parse(rawJson);
-            document.getElementById('resumeText').innerText = JSON.stringify(lastTailoredJson, null, 2);
-            document.getElementById('resumeView').classList.remove('hidden');
-        } catch (err) { console.error(err); }
-        finally { tailorBtn.disabled = false; tailorBtn.innerText = "Generate Document"; }
-    };
-}
+        .tab-btn.active {
+            opacity: 1;
+            border-bottom-color: #3b82f6;
+            color: #3b82f6;
+        }
 
-const chatSendBtn = document.getElementById('chatSendBtn');
-if (chatSendBtn) {
-    chatSendBtn.onclick = async () => {
-        const key = document.getElementById('geminiKey').value;
-        const userInput = document.getElementById('chatInput').value;
-        const jobDesc = document.getElementById('jobDesc').value;
-        if (!userInput || !key) return;
-        appendChatMessage('user', userInput);
-        document.getElementById('chatInput').value = "";
-        try {
-            const docSnap = await getDoc(doc(db, "profiles", currentUser.uid));
-            const profile = docSnap.data();
-            const genAI = new GoogleGenerativeAI(key);
-            const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
-            const systemContext = `Discriminatively honest Career Coach. Do not sugarcoat. Profile: ${profile.profileText} Job: ${jobDesc}. No markdown.`;
-            const result = await model.generateContent(`${systemContext}\n\nUser Query: ${userInput}`);
-            appendChatMessage('ai', result.response.text());
-        } catch (err) { appendChatMessage('ai', "Error."); }
-    };
-}
+        .theme-icon { display: none; }
+        .light-mode .sun-icon { display: block; }
+        .dark-mode .moon-icon { display: block; }
 
-const downloadBtn = document.getElementById('downloadBtn');
-if (downloadBtn) {
-    downloadBtn.onclick = async () => {
-        if (!lastTailoredJson) return;
-        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } = docx;
-        const children = [
-            new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: lastTailoredJson.name.toUpperCase(), bold: true, size: 24, font: "Arial" })] }),
-            new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: lastTailoredJson.contact, size: 18, font: "Arial" })], spacing: { after: 200 } }),
-            new Paragraph({ text: "SUMMARY", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } } }),
-            new Paragraph({ children: [new TextRun({ text: lastTailoredJson.summary, font: "Arial", size: 20 })], spacing: { before: 100, after: 200 } }),
-            new Paragraph({ text: "EXPERIENCE", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } } }),
-        ];
-        lastTailoredJson.experience.forEach(exp => {
-            children.push(new Paragraph({ spacing: { before: 150 }, children: [new TextRun({ text: exp.title, bold: true, font: "Arial", size: 20 }), new TextRun({ text: `\t${exp.date}`, bold: true, font: "Arial", size: 20 })] }));
-            children.push(new Paragraph({ children: [new TextRun({ text: exp.company, italic: true, font: "Arial", size: 20 })], spacing: { after: 50 } }));
-            exp.bullets.forEach(b => children.push(new Paragraph({ text: b, bullet: { level: 0 }, spacing: { before: 40 }, font: "Arial" })));
-        });
-        children.push(new Paragraph({ text: "EDUCATION", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } }, spacing: { before: 200 } }));
-        lastTailoredJson.education.forEach(edu => {
-            children.push(new Paragraph({ spacing: { before: 100 }, children: [new TextRun({ text: edu.degree, bold: true, font: "Arial", size: 20 }), new TextRun({ text: `\t${edu.date}`, bold: true, font: "Arial", size: 20 })] }));
-            children.push(new Paragraph({ children: [new TextRun({ text: edu.school, font: "Arial", size: 20 })] }));
-        });
-        children.push(new Paragraph({ text: "SKILLS", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } }, spacing: { before: 200 } }));
-        children.push(new Paragraph({ text: lastTailoredJson.skills.join(", "), spacing: { before: 100 }, font: "Arial", size: 20 }));
-        const docObj = new Document({ sections: [{ properties: { page: { margin: { top: 720, bottom: 720, left: 720, right: 720 } } }, children }] });
-        const blob = await Packer.toBlob(docObj);
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = `Resume.docx`; a.click();
-    };
-}
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.4s ease; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="min-h-screen antialiased dark-mode">
+    <div class="max-w-5xl mx-auto p-6 md:p-12 space-y-8">
+        
+        <header class="flex justify-between items-center">
+            <h1 class="text-2xl font-bold tracking-tight">RESUME<span class="text-blue-500">PARSER</span></h1>
+            
+            <div class="flex items-center gap-4">
+                <button id="themeToggle" class="glass-card p-2.5 rounded-full hover:bg-white/10 transition">
+                    <svg class="w-5 h-5 moon-icon theme-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                    <svg class="w-5 h-5 sun-icon theme-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1M4 9h-1m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                </button>
+
+                <div id="authArea">
+                    <button id="loginBtn" class="glass-card px-8 py-2 rounded-full text-sm font-medium">Sign In</button>
+                    <div id="userInfo" class="hidden flex items-center gap-6">
+                        <span id="displayName" class="text-sm font-medium opacity-70"></span>
+                        <button id="logoutBtn" class="text-xs text-red-400 font-bold uppercase">Logout</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <nav id="tabNav" class="hidden flex gap-8 border-b border-white/10 pb-2">
+            <button class="tab-btn active text-xs font-bold uppercase tracking-widest" data-tab="profile">Profile</button>
+            <button class="tab-btn text-xs font-bold uppercase tracking-widest" data-tab="analysis">Analysis</button>
+            <button class="tab-btn text-xs font-bold uppercase tracking-widest" data-tab="tailor">Tailor</button>
+            <button class="tab-btn text-xs font-bold uppercase tracking-widest" data-tab="coach">Coach</button>
+        </nav>
+
+        <main id="appInterface" class="hidden">
+            <div id="profile" class="tab-content active space-y-8">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <section class="glass-card p-8 rounded-3xl">
+                        <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-4">Configuration</h2>
+                        <input type="password" id="geminiKey" class="input-field w-full p-3 rounded-xl text-xs" placeholder="API Key">
+                        <button id="clearHistoryBtn" class="w-full mt-6 border border-red-500/30 text-red-500 py-2 rounded-xl text-[10px] uppercase font-bold hover:bg-red-500/10 transition">Clear All Data</button>
+                    </section>
+                    <section class="glass-card p-8 rounded-3xl md:col-span-2 space-y-6">
+                        <div class="flex justify-between items-center">
+                            <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Profile Management</h2>
+                            <span id="syncStatus" class="text-[9px] opacity-50 uppercase font-bold">Disconnected</span>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="relative group">
+                                <input type="file" id="resumeFiles" multiple accept=".pdf,.docx" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                                <div class="input-field p-4 rounded-xl text-center text-xs opacity-60 group-hover:border-blue-500 transition border-dashed">
+                                    Add New Documents
+                                </div>
+                            </div>
+                            <textarea id="linkedinText" class="input-field w-full p-3 rounded-xl text-xs h-16 resize-none" placeholder="Additional Bio Info"></textarea>
+                        </div>
+                        <button id="syncBtn" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-blue-500 transition">Update Profile Context</button>
+                    </section>
+                </div>
+            </div>
+
+            <div id="analysis" class="tab-content space-y-8">
+                <section class="glass-card p-10 rounded-[2.5rem] space-y-6">
+                    <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-widest text-center">Job Specification</h2>
+                    <textarea id="jobDesc" rows="6" class="input-field w-full p-5 rounded-2xl text-sm resize-none" placeholder="Paste Job Description or URL"></textarea>
+                    <button id="analyzeBtn" class="w-full bg-amber-500/10 text-amber-500 border border-amber-500/20 py-4 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-amber-500/20 transition">Analyze Suitability</button>
+                    <div id="analysisArea" class="hidden pt-6 border-t border-white/5">
+                        <div id="analysisReport" class="text-sm opacity-80 whitespace-pre-wrap leading-relaxed"></div>
+                    </div>
+                </section>
+            </div>
+
+            <div id="tailor" class="tab-content space-y-8">
+                <section class="glass-card p-10 rounded-[2.5rem] space-y-6 text-center">
+                    <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-widest">ATS Document Engine</h2>
+                    <button id="tailorBtn" class="w-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 py-4 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-emerald-500/20 transition">Generate ATS Resume</button>
+                    <div id="resumeView" class="hidden text-left space-y-6">
+                        <div class="flex justify-between items-center pt-6 border-t border-white/5">
+                            <button id="downloadBtn" class="bg-blue-600 text-white px-8 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition">Download .docx</button>
+                        </div>
+                        <div id="resumeText" class="font-mono text-[10px] opacity-40 whitespace-pre-wrap bg-black/20 p-8 rounded-2xl border border-white/5 max-h-[400px] overflow-y-auto"></div>
+                    </div>
+                </section>
+            </div>
+
+            <div id="coach" class="tab-content space-y-8">
+                <section class="glass-card p-10 rounded-[2.5rem] max-w-3xl mx-auto">
+                    <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-8 flex items-center gap-3">
+                        <span class="w-2 h-2 bg-blue-500 rounded-full"></span> Consultation
+                    </h2>
+                    <div id="chatBox" class="h-80 overflow-y-auto space-y-6 mb-8 pr-4"></div>
+                    <div class="relative">
+                        <input type="text" id="chatInput" class="input-field w-full p-5 pr-28 rounded-2xl text-sm" placeholder="Ask coach...">
+                        <button id="chatSendBtn" class="absolute right-2.5 top-2.5 bottom-2.5 bg-blue-600 text-white px-8 rounded-xl font-bold text-[10px] uppercase tracking-widest">Send</button>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+    <script type="module" src="app.js"></script>
+</body>
+</html>
