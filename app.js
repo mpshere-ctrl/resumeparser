@@ -2,6 +2,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
+// FIX: Direct ESM import for docx to resolve "ReferenceError: docx is not defined"
+import * as docx from "https://cdn.skypack.dev/docx";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBzUhTIuszpODRYti4gS7ks7ewbIxzvVDM",
@@ -19,6 +21,7 @@ const provider = new GoogleAuthProvider();
 let currentUser = null;
 let lastTailoredJson = null;
 
+// PDF.js Worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 // --- THEME & TABS ---
@@ -70,7 +73,8 @@ async function extractTextFromFile(file) {
 }
 
 function cleanAiOutput(text) {
-    return text.replace(/[*#]/g, '').trim();
+    // Aggressively remove Markdown symbols
+    return text.replace(/[#*`]/g, '').trim();
 }
 
 function appendChatMessage(role, text) {
@@ -177,8 +181,7 @@ if (analyzeBtn) {
             const genAI = new GoogleGenerativeAI(key);
             const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
             const prompt = `Act as a discriminatively honest Technical Recruiter. 
-            CONSTRAINT: DO NOT USE MARKDOWN SYMBOLS. NO HASHTAGS (#), NO ASTERISKS (*).
-            Use PLAIN TEXT only. Use ALL CAPS for headers. Use simple dashes (-) for lists.
+            CONSTRAINT: DO NOT USE MARKDOWN. NO #, NO *. Use PLAIN TEXT. Use ALL CAPS for headers.
             Assessment: ${profile.profileText} vs Job: ${job}.`;
             const result = await model.generateContent(prompt);
             document.getElementById('analysisReport').innerText = cleanAiOutput(result.response.text());
@@ -203,7 +206,7 @@ if (tailorBtn) {
             const prompt = `Rewrite a professional resume for ${profile.userName} tailored to: ${job}. 
             Use context: ${profile.profileText}. 
             Output MUST be a valid JSON object with keys: "name", "contact" (object with email, phone, address, linkedin), "summary", "experience" (array of {title, company, date, bullets[]}), "education" (array of {degree, school, date}), "skills" (array of strings). 
-            IMPORTANT: Optimize for ATS. Do not include markdown code blocks.`;
+            IMPORTANT: Optimize for ATS. Return ONLY the JSON.`;
             const result = await model.generateContent(prompt);
             let rawJson = result.response.text().replace(/```json|```/g, "").trim();
             lastTailoredJson = JSON.parse(rawJson);
@@ -228,7 +231,7 @@ if (chatSendBtn) {
             const profile = docSnap.data();
             const genAI = new GoogleGenerativeAI(key);
             const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
-            const systemContext = `Discriminatively honest Career Coach. Do not sugarcoat. Profile: ${profile.profileText} Job: ${jobDesc}. No markdown.`;
+            const systemContext = `Discriminatively honest Career Coach. No markdown. Profile: ${profile.profileText} Job: ${jobDesc}.`;
             const result = await model.generateContent(`${systemContext}\n\nUser Query: ${userInput}`);
             appendChatMessage('ai', cleanAiOutput(result.response.text()));
         } catch (err) { appendChatMessage('ai', "Error."); }
@@ -241,16 +244,18 @@ if (downloadBtn) {
     downloadBtn.onclick = async () => {
         if (!lastTailoredJson) return;
         
-        // FIX: Access docx directly from the global scope
-        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } = window.docx;
+        // Access docx from the ESM import
+        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } = docx;
         
         const contactInfo = `${lastTailoredJson.contact.email} | ${lastTailoredJson.contact.phone}\n${lastTailoredJson.contact.address}\n${lastTailoredJson.contact.linkedin}`;
 
         const children = [
             new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: lastTailoredJson.name.toUpperCase(), bold: true, size: 28, font: "Arial" })] }),
             new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: contactInfo, size: 18, font: "Arial" })], spacing: { after: 300 } }),
+            
             new Paragraph({ text: "SUMMARY", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } } }),
             new Paragraph({ children: [new TextRun({ text: lastTailoredJson.summary, font: "Arial", size: 20 })], spacing: { before: 150, after: 300 } }),
+
             new Paragraph({ text: "EXPERIENCE", heading: HeadingLevel.HEADING_1, border: { bottom: { color: "auto", space: 1, style: BorderStyle.SINGLE, size: 6 } } }),
         ];
 
