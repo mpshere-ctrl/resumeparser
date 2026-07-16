@@ -8,7 +8,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js"></script>
     
     <style>
         :root {
@@ -103,24 +102,24 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <section class="glass-card p-8 rounded-3xl">
                         <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-4">Configuration</h2>
-                        <input type="password" id="geminiKey" class="input-field w-full p-3 rounded-xl text-xs" placeholder="API Key">
-                        <button id="clearHistoryBtn" class="w-full mt-6 border border-red-500/30 text-red-500 py-2 rounded-xl text-[10px] uppercase font-bold hover:bg-red-500/10 transition">Clear All Data</button>
+                        <input type="password" id="geminiKey" class="input-field w-full p-3 rounded-xl text-xs mb-4" placeholder="API Key">
+                        <button id="clearHistoryBtn" class="w-full border border-red-500/30 text-red-500 py-2 rounded-xl text-[10px] uppercase font-bold hover:bg-red-500/10 transition">Clear Data</button>
                     </section>
                     <section class="glass-card p-8 rounded-3xl md:col-span-2 space-y-6">
                         <div class="flex justify-between items-center">
-                            <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Profile Management</h2>
+                            <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Ingestion</h2>
                             <span id="syncStatus" class="text-[9px] opacity-50 uppercase font-bold">Disconnected</span>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div class="relative group">
                                 <input type="file" id="resumeFiles" multiple accept=".pdf,.docx" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
                                 <div class="input-field p-4 rounded-xl text-center text-xs opacity-60 group-hover:border-blue-500 transition border-dashed">
-                                    Add New Documents
+                                    Add Documents
                                 </div>
                             </div>
-                            <textarea id="linkedinText" class="input-field w-full p-3 rounded-xl text-xs h-16 resize-none" placeholder="Additional Bio Info"></textarea>
+                            <textarea id="linkedinText" class="input-field w-full p-3 rounded-xl text-xs h-16 resize-none" placeholder="LinkedIn / Summary"></textarea>
                         </div>
-                        <button id="syncBtn" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-blue-500 transition">Update Profile Context</button>
+                        <button id="syncBtn" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-blue-500 transition">Update Profile</button>
                     </section>
                 </div>
             </div>
@@ -152,9 +151,9 @@
             <div id="coach" class="tab-content space-y-8">
                 <section class="glass-card p-10 rounded-[2.5rem] max-w-3xl mx-auto">
                     <h2 class="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-8 flex items-center gap-3">
-                        <span class="w-2 h-2 bg-blue-500 rounded-full"></span> Consultation
+                        <span class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span> Consultation
                     </h2>
-                    <div id="chatBox" class="h-80 overflow-y-auto space-y-6 mb-8 pr-4"></div>
+                    <div id="chatBox" class="h-80 overflow-y-auto space-y-6 mb-8 pr-4 border-b border-white/5"></div>
                     <div class="relative">
                         <input type="text" id="chatInput" class="input-field w-full p-5 pr-28 rounded-2xl text-sm" placeholder="Ask coach...">
                         <button id="chatSendBtn" class="absolute right-2.5 top-2.5 bottom-2.5 bg-blue-600 text-white px-8 rounded-xl font-bold text-[10px] uppercase tracking-widest">Send</button>
